@@ -1,0 +1,24 @@
+<div class="container mt-4"> 
+    <form [formGroup]="modifyprojectForm" (ngSubmit)="submitmodifyProject()">
+   
+  
+      <div class="form-group">
+        <label for="parameter1">Parameter 1</label>
+        <input id="parameter1" formControlName="Parameter1" type="number" class="form-control" placeholder="Enter parameter 1">
+      </div>
+  
+      <div class="form-group mt-3">
+        <label for="parameter2">Parameter 2</label>
+        <input id="parameter2" formControlName="Parameter2" type="number" class="form-control" placeholder="Enter parameter 2">
+      </div>
+  
+      <div class="form-group mt-3">
+        <label for="parameter3">Parameter 3</label>
+        <input id="parameter3" formControlName="Parameter3" type="number" class="form-control" placeholder="Enter parameter 3">
+      </div>
+
+      <button type="submit" class="btn btn-primary mt-4" [disabled]="!modifyprojectForm.valid">Submit</button>
+    </form>
+</div>
+  
+
