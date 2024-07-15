@@ -6,17 +6,21 @@ class UserCreate(BaseModel):
     password: str
 
 
-    
-
 class UserResponse(UserCreate):
     role: str = Field(default="admin")
+    status: str = Field(default="verified")
     class Config:
         orm_mode = True
 
 
 class UserUpdate(BaseModel):
+    status: str
     role: str
     username: str
+
+class UserUpdate2(BaseModel):
+    password: str
+    
 class ProjectBase(BaseModel):
     name: str
     description: Optional[str] = None

@@ -1,18 +1,18 @@
 import { Injectable } from '@angular/core';
-import { ActivatedRouteSnapshot, Router, RouterStateSnapshot } from '@angular/router';
 import { AuthService } from './auth.service';
+import { ActivatedRouteSnapshot, CanActivate, Router, RouterStateSnapshot } from '@angular/router';
 
 @Injectable({
   providedIn: 'root'
 })
-export class RoleguardService {
+export class NotAuthService implements CanActivate {
+  constructor(private authService: AuthService, private router: Router) {}
 
-  constructor(private router: Router) { }
   canActivate(
     next: ActivatedRouteSnapshot,
     state: RouterStateSnapshot
   ): boolean {
-    if (localStorage.getItem('role') == 'admin') {
+    if (!this.authService.isAuthenticated()) {
       return true;
     } else {
       this.router.navigate(['/home']);

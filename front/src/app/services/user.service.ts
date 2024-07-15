@@ -31,7 +31,10 @@ modifyUser(name: string, newData: any): Observable<any> {
   const url = `${this.baseUrl}/users/${name}/modify`; // Assuming you have an endpoint like /users/:id/modify
   return this.http.put<any>(url, newData);
 }
-
+modifyUser2(name: string, newData: any): Observable<any> {
+  const url = `${this.baseUrl}/users/${name}/update`; // Assuming you have an endpoint like /users/:id/update
+  return this.http.put<any>(url, newData);
+}
 
 deleteUser(name: string): Observable<any> {
   return this.http.delete<any>(`${this.baseUrl}/users/${name}`, { headers: this.getAuthHeaders() });

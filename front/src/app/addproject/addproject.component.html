@@ -1,44 +1,8 @@
 <div class="container mt-4"> 
-    <form [formGroup]="projectForm" (ngSubmit)="submitProject()">
-      <div class="form-group">
-        <label for="name">Project Name</label>
-        <input id="name" formControlName="name" type="text" class="form-control" placeholder="Enter project name" required>
-      </div>
-  
-      <div class="form-group mt-3">
-        <label for="description">Description</label>
-        <textarea id="description" formControlName="description" class="form-control" placeholder="Enter project description"></textarea>
-      </div>
-  
-      <div class="form-group mt-3">
-        <label for="parameter1">Parameter 1</label>
-        <input id="parameter1" formControlName="parameter1" type="number" class="form-control" placeholder="Enter parameter 1">
-      </div>
-  
-      <div class="form-group mt-3">
-        <label for="parameter2">Parameter 2</label>
-        <input id="parameter2" formControlName="parameter2" type="number" class="form-control" placeholder="Enter parameter 2">
-      </div>
-  
-      <div class="form-group mt-3">
-        <label for="parameter3">Parameter 3</label>
-        <input id="parameter3" formControlName="parameter3" type="number" class="form-control" placeholder="Enter parameter 3">
-      </div>
-  
-      <div class="form-row mt-3">
-        <div class="col">
-          <label for="longitude">Longitude</label>
-          <input id="longitude" formControlName="longitude" type="number" class="form-control" placeholder="Enter longitude">
-        </div>
-        <div class="col">
-          <label for="latitude">Latitude</label>
-          <input id="latitude" formControlName="latitude" type="number" class="form-control" placeholder="Enter latitude">
-        </div>
-      </div>
-      <div class="mt-4 embed-responsive embed-responsive-16by9">
-        <div class="embed-responsive-item responsive-plot" id="map0" #map0></div>
-      </div>
-      <button type="submit" class="btn btn-primary mt-4" [disabled]="!projectForm.valid">Submit</button>
-    </form>
+  <form (ngSubmit)="submitProject()">
+  <h6>Upload one or multiple borehole files with extensions .xlsx, .xls, .xlsm, or .ags</h6>
+    <input type="file" accept=".xlsx,.xls,.ags,.xlsm"  (change)="onFileChange($event)" multiple required/>
+    <button class="btn btn-info" type="submit" style="margin-bottom: 10px;">Upload</button>
+  </form>
 </div>
   

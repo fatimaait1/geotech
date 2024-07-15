@@ -5,13 +5,11 @@ import { TokenService } from './token.service';
 
 export interface Project {
   name: string;
-  description: string;
-  East: number;
-  North: number;
-  geom: string;
-  parameter1: number;
-  parameter2: number;
-  parameter3: number;
+  project_id: string;
+  x: number;
+  y: number;
+  date: Date;
+
 }
 @Injectable({
   providedIn: 'root'
@@ -31,10 +29,19 @@ export class ProjectService {
     return this.http.get<any>(`${this.baseUrl}/projects`, { headers: this.getAuthHeaders() });
   }
   
+
+
   addProject(data: any): Observable<any> {
-    return this.http.post(`${this.baseUrl}/projects`, data, { headers: this.getAuthHeaders() })
+    const headers = new HttpHeaders();
+    const token = this.tokenservice.getToken();
+    headers.set('Content-Type', 'multipart/form-data');
+    headers.set('Authorization', `${token}`)
+    return this.http.post(`${this.baseUrl}/projects`, data, { headers, reportProgress: true })
         .pipe(map(response => response));
 }
+
+
+
 modifyProject(name: string, newData: any): Observable<any> {
   const url = `${this.baseUrl}/projects/${name}/modify`; // Assuming you have an endpoint like /projects/:id/modify
   return this.http.put<any>(url, newData);
@@ -45,4 +52,15 @@ deleteProject(name: string): Observable<any> {
   return this.http.delete<any>(`${this.baseUrl}/projects/${name}`, { headers: this.getAuthHeaders() });
 }
 
+getBHs(project_name: string): Observable<any> {
+  return this.http.get<any>(`${this.baseUrl}/data/${project_name}`, { headers: this.getAuthHeaders() });
+}
+
+get3D(project_name: string): Observable<any> {
+  return this.http.get<any>(`${this.baseUrl}/geol/${project_name}`, { headers: this.getAuthHeaders() });
+}
+
+getGraphs(project_name: string, bhh: string, parameter: string): Observable<any> {
+  return this.http.get<any>(`${this.baseUrl}/params/?project=${project_name}&bhh=${bhh}&parameter=${parameter}`, { headers: this.getAuthHeaders() });
+}
 }

@@ -4,7 +4,7 @@
     <ul class="navbar-nav me-auto mb-2 mb-lg-0">
       @if(role == 'admin')
      { <li class="nav-item">
-        <button type="button" class="btn btn-secondary me-2" (click)="addProject()">Add new project</button>
+        <button type="button" class="btn btn-secondary me-2" (click)="addProject()">Add new BH file</button>
       </li>
       <li class="nav-item">
         <button type="button" class="btn btn-secondary me-2" [routerLink]="['/users']">Manage users</button>
@@ -14,14 +14,18 @@
     </ul>
     <ul class="navbar-nav ms-auto">
       <li class="nav-item">
+        <button type="button" class="btn btn-secondary me-2" [routerLink]="['/account', username]">Account</button>
+      </li>
+      <li class="nav-item">
         <button type="button" class="btn btn-danger" (click)="logout()">Log out</button>
       </li>
+  
     </ul>
   </div>
 </nav>
 
   <div id="content-wrapper">
-    <div class="row container-fluid d-flex justify-content-center equal-height full-height"> 
+    <div class="row container-fluid  justify-content-center equal-height full-height"> 
         <div class="col-xl-7 col-lg-7 col-md-9 mt-4 mb-4 embed-responsive embed-responsive-16by9" >
             <div class="embed-responsive-item responsive-plot" id="map" #map></div>
         </div>
@@ -53,28 +57,23 @@
                 <table class="table table-bordered">
                   <thead>
                     <tr>
-                      <th>Name</th>
-                      <th>Parameter 1</th>
-                      <th>Parameter 2</th>
-                      <th>Parameter 3</th>
+                      <th>Project Name</th>
+                      <th>Date</th> <!-- we can add sort by date -->
                     </tr>
                   </thead>
                   <tbody>
                     @for (row of filteredProjects; track row) 
                    {<tr>
                       <td>{{ row.name }}</td>
-                      <td>{{ row.parameter1 }}</td>
-                      <td>{{ row.parameter2 }}</td>
-                      <td>{{ row.parameter3 }}</td>
+                      <td>{{ row.date }}</td> <!-- we can add sort by date -->
+                     
                       <td>
                         <div class=" d-flex justify-content-around">
-                          <button type="button" class="btn btn-info mx-1" (click)="goToDetails(row.name)">
+                          <button type="button" class="btn btn-info mx-1" (click)="zoomTo(row.name, row.x, row.y)">
                             <i class="bi bi-bar-chart-line"></i>
                           </button>
                           @if(role == 'admin')
-                          {<button type="button" class="btn btn-success mx-1">
-                            <i class="bi bi-sliders" (click)="openModifyDialog(row.name, row.parameter1, row.parameter2, row.parameter3)"></i>
-                          </button>
+                          {
                           <button type="button" class="btn btn-danger mx-1" (click)="deleteProject(row.name)">
                             <i class="bi bi-trash-fill"></i>
                           </button> }
@@ -88,6 +87,62 @@
             </div>
         </div>
        
+    </div>
+   
+    <div class="row mt-4">
+      @if (isclicked)
+      {
+      <div class="col-xl-4 col-lg-4 col-md-4">
+        <div class="card">
+          <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+          <b class="text-muted"><i class="bi bi-hand-index-thumb" style="margin-right: 8px;"></i>Select a parameter</b>
+          <div class="dropdown">
+              <a class="dropdown-toggle" role="button" id="dropdownMenuLink"
+                  data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                  <i class="fas fa-ellipsis-v fa-sm fa-fw text-gray-400"></i>
+              </a>
+              <div class="dropdown-menu dropdown-menu-right shadow animated--fade-in"
+                  aria-labelledby="dropdownMenuLink">
+                  <div class="dropdown-header">Select a Parameter:</div>
+                 
+                <div class="py-2 collapse-inner rounded">
+                    @for(option of parameters; track option)
+                      {<div class="text-center mb-0">
+                          <label class="form-check-label">
+                              <input type="radio"
+                                     class="form-check-input"
+                                     [value]="option"
+                                     [(ngModel)]="selectedParameter" 
+                                     [ngModelOptions]="{standalone: true}" 
+                                     (change)="plotGraphs2()"
+                                     name="typeGroup"/>
+                              {{ option }}
+                          </label>
+                        </div>}
+                      </div>
+                  
+              </div>
+          </div>
+      </div>
+          <div class="card-body">
+            <div id="plot"  #plot></div>
+          </div>
+        </div>
+      </div>}
+      @if (isclicked0)
+      {
+      <div class="col-xl-7 col-lg-7 col-md-9">
+        <div class="card">
+          <div class="card-header py-3 d-flex flex-row align-items-center">
+              All<input type="checkbox" [(ngModel)]="plotAll" (change)="plot3d()">
+              <b style="margin-left: 20px;">{{selectedProject}}</b>
+      </div>
+      
+          <div class="card-body embed-responsive embed-responsive-16by9">
+            <div class="embed-responsive-item responsive-plot" id="3d" #3d></div>
+          </div>
+        </div>
+      </div>}
     </div>
   </div>
  

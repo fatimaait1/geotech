@@ -1,0 +1,34 @@
+<nav class="navbar navbar-expand-lg navbar-light bg-light">
+    <a class="navbar-brand" href="#"><b>NMDC-Group</b></a>
+    <div class="collapse navbar-collapse">
+      <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+        <li class="nav-item">
+          <button type="button" class="btn btn-secondary me-2" [routerLink]="['/home']">Home</button>
+        </li>
+        
+      </ul>
+      <ul class="navbar-nav ms-auto">
+        <li class="nav-item">
+          <button type="button" class="btn btn-danger" (click)="logout()">Log out</button>
+        </li>
+      </ul>
+    </div>
+  </nav>
+<div class="container mt-4"> 
+    <form [formGroup]="modifyuserForm" (ngSubmit)="submitmodifyUser()">
+   
+  
+      <div class="form-group">
+        <label for="parameter1">Password</label>
+        <input id="parameter1" formControlName="password" type="password" class="form-control" placeholder="Enter new Password">
+      </div>
+  
+      <div class="form-group mt-3">
+        <label for="parameter2">Retype Password</label>
+        <input id="parameter2" formControlName="passwordretype" type="password" class="form-control" placeholder="Confirm new Password">
+      </div>
+  
+
+      <button type="submit" class="btn btn-primary mt-4" [disabled]="!modifyuserForm.valid">Submit</button>
+    </form>
+</div>

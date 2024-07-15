@@ -1,4 +1,4 @@
-import { AbstractControl, ValidationErrors, ValidatorFn } from '@angular/forms';
+import { AbstractControl, FormGroup, ValidationErrors, ValidatorFn } from '@angular/forms';
 
 export function emailDomainValidator(domainName: string): ValidatorFn {
   return (control: AbstractControl): ValidationErrors | null => {
@@ -9,7 +9,12 @@ export function emailDomainValidator(domainName: string): ValidatorFn {
     return null;
   };
 }
+export const passwordMatchingValidatior: ValidatorFn = (control: AbstractControl): ValidationErrors | null => {
+  const password = control.get('password');
+  const confirmPassword = control.get('passwordretype');
 
+  return password?.value === confirmPassword?.value ? null : { notmatched: true };
+};
 
 export function longitudeValidator(): ValidatorFn {
   return (control: AbstractControl): ValidationErrors | null => {
@@ -29,7 +34,4 @@ export function latitudeValidator(): ValidatorFn {
     }
     return null;
   };
-}
-export function requiredValidator(control: AbstractControl): ValidationErrors | null {
-  return control.value ? null : { required: true };
 }

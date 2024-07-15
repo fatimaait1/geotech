@@ -15,7 +15,7 @@ import { emailDomainValidator } from '../../validators/valid';
 })
 export class LoginComponent {
   constructor(private router: Router, private loginService: AuthService) {}
-  LoginForm= new FormGroup({username: new FormControl('@nmdc-group.com', [Validators.required, emailDomainValidator('nmdc-group.com')]), password: new FormControl('', [Validators.required])})
+  LoginForm= new FormGroup({username: new FormControl('@nmdc-group.com', [Validators.required, Validators.email, emailDomainValidator('nmdc-group.com')]), password: new FormControl('', [Validators.required])})
   loginSubscription: Subscription | undefined;
 
   ngOnInit() {
