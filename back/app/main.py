@@ -3,6 +3,7 @@ import re
 import traceback
 from typing import Annotated, List, Optional
 from fastapi import FastAPI, Depends, File, HTTPException, Header, Request, UploadFile, status, Query
+import numpy as np
 import pandas as pd
 from sqlalchemy.orm import Session
 from .database import SessionLocal, engine
@@ -112,10 +113,18 @@ async def createProject(Files: List[UploadFile] = File(...), db: Session = Depen
                     if filename.endswith('.xls') or filename.endswith('.xlsx') or filename.endswith('.xlsm'):
                         ff=  await bh_file.read()
                         BHs = pd.read_excel(io.BytesIO(ff), sheet_name='POINT') 
+                        #print(BHs)
+                        BHs = BHs.dropna(subset=['PointID'])
+                        #BHs= BHs.fillna(value=None)
+                        #print(BHs)
                         ISTPs = pd.read_excel(io.BytesIO(ff), sheet_name='ISPT') 
-                        COREs = pd.read_excel(io.BytesIO(ff), sheet_name='CORE') 
+                        ISTPs = ISTPs.dropna(subset=['PointID'])
+                        COREs = pd.read_excel(io.BytesIO(ff), sheet_name='CORE')
+                        COREs = COREs.dropna(subset=['PointID']) 
                         UCSs = pd.read_excel(io.BytesIO(ff), sheet_name='UNCONF COMPR') 
+                        UCSs = UCSs.dropna(subset=['PointID'])
                         GEOLs = pd.read_excel(io.BytesIO(ff), sheet_name='GEOL')
+                        GEOLs = GEOLs.dropna(subset=['PointID'])
                         filename = bh_file.filename.lower()
                         project_name= filename.split('.')[0]
                         print(project_name)
@@ -128,6 +137,7 @@ async def createProject(Files: List[UploadFile] = File(...), db: Session = Depen
                         if BHs is not None and not BHs.empty:
                             for _, row in BHs.iterrows():
                                 pointID= row['PointID']
+                                print(pointID)
                                 report_id= row['Report']
                                 Elevation = row['Elevation']
                                 East= float(row['East'])
@@ -144,7 +154,7 @@ async def createProject(Files: List[UploadFile] = File(...), db: Session = Depen
                                 North=North,
                                 geom=geom)
                                 db.add(new_entry)
-                            
+                            #db.commit()
                     elif filename.endswith('.ags'):
                         frames_data = {}
                         ags_content0 = await bh_file.read()
@@ -259,7 +269,7 @@ async def createProject(Files: List[UploadFile] = File(...), db: Session = Depen
                             )
                                 db.add(new_entry)
 
-
+                            #db.commit()
                         GEOLs = frames_data.get('GEOL')
                         if GEOLs is not None and not GEOLs.empty:
                             GEOLs= GEOLs[['HOLE_ID', 'GEOL_TOP', 'GEOL_BASE', 'GEOL_LEG']]
@@ -321,19 +331,23 @@ async def createProject(Files: List[UploadFile] = File(...), db: Session = Depen
                             core_prec= row['CORE_PREC']
                             core_srec= row['CORE_SREC']
                             core_rqd= row['CORE_RQD']
-                            new_entry1= bhparams(name= 'CORE_PREC', pointID= pointID, project_name=project_name, depth=depth, value=core_prec)
-                            db.add(new_entry1)
-                            new_entry2= bhparams(name= 'CORE_SREC', pointID= pointID, project_name=project_name, depth=depth, value=core_srec)
-                            db.add(new_entry2)
-                            new_entry3= bhparams(name= 'CORE_RQD', pointID= pointID, project_name=project_name, depth=depth, value=core_rqd)
-                            db.add(new_entry3)
+                            if isinstance(core_prec, (float)):
+                               new_entry1= bhparams(name= 'CORE_PREC', pointID= pointID, project_name=project_name, depth=depth, value=core_prec)
+                               db.add(new_entry1)
+                            if isinstance(core_srec, (float)):
+                               new_entry2= bhparams(name= 'CORE_SREC', pointID= pointID, project_name=project_name, depth=depth, value=core_srec)
+                               db.add(new_entry2)
+                            if isinstance(core_rqd, (float)):
+                               new_entry3= bhparams(name= 'CORE_RQD', pointID= pointID, project_name=project_name, depth=depth, value=core_rqd)
+                               db.add(new_entry3)
                         
                     if UCSs is not None and not UCSs.empty:  
                        for _, row in UCSs.iterrows():
                         pointID= row['PointID']
                         depth= row['Depth']
                         strength = row['Strength']
-                        new_entry= bhparams(name= 'UCS', pointID= pointID, project_name=project_name, depth=depth, value=strength)
+                        samp_ref= row['SAMP_REF']
+                        new_entry= bhparams(samp_ref= samp_ref, name= 'UCS', pointID= pointID, project_name=project_name, depth=depth, value=strength)
                         db.add(new_entry)
                     
                     db.commit()
@@ -456,10 +470,15 @@ def getData(project: str = Query(...), bhh: str = Query(...), parameter: str = Q
 @app.get("/geol/{project_name}")
 def getGeol(project_name: str, db: Session = Depends(get_db)):
     geols= db.query(geol).filter(geol.project_name == project_name).all()
+    #print(geols)
     data=[]
     for v in geols: 
         bh= db.query(BH).filter(BH.pointID== v.pointID, BH.project_name== project_name).first()
+        #print(bh.pointID)
         geometry = wkb.loads(bytes(bh.geom.data))
+        val= v.geol_value.lower()
+        if pd.isna(bh.Elevation) or pd.isna(geometry.y) or pd.isna(geometry.x):
+            continue
         data.append({
                 'name': bh.pointID,
                 'x': geometry.x,
@@ -467,6 +486,7 @@ def getGeol(project_name: str, db: Session = Depends(get_db)):
                 'Elev': bh.Elevation,
                 'depthFrom': v.depth_from,
                 'depthTo': v.depth_to,
-                'geol_desc': v.geol_value.lower(),
+                'geol_desc': val,
             })
+    print(data)
     return {'data': data}

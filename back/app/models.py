@@ -1,6 +1,6 @@
 from uuid import uuid4
 from geoalchemy2 import Geometry
-from sqlalchemy import DOUBLE_PRECISION, Column, Date, ForeignKey, ForeignKeyConstraint, PrimaryKeyConstraint, String
+from sqlalchemy import DOUBLE_PRECISION, Column, Date, ForeignKey, ForeignKeyConstraint, PrimaryKeyConstraint, String, Text
 from sqlalchemy.ext.declarative import declarative_base
 
 Base = declarative_base()
@@ -30,7 +30,7 @@ class Project(Base):
 class BH(Base):
     __tablename__ = 'bh'
     pointID = Column(String, nullable=False)
-    project_name = Column(String, ForeignKey('projects.name'), nullable=False)
+    project_name = Column(String, ForeignKey('projects.name', ondelete="CASCADE"), nullable=False)
     report_id = Column(String, nullable=True)
     East = Column(DOUBLE_PRECISION, nullable=False)
     North = Column(DOUBLE_PRECISION, nullable=False)
@@ -61,18 +61,19 @@ class geol(Base):
 
 class bhparams(Base):
     __tablename__ = 'bhparams'
+    id = Column(Text, primary_key=True, unique=True, default=get_uuid)
     name = Column(String, nullable=True) #name of parameter
     depth = Column(DOUBLE_PRECISION, nullable=True)
     value = Column(DOUBLE_PRECISION, nullable=True)
     pointID = Column(String, nullable=False)
     project_name = Column(String, nullable=False)
-
+    samp_ref = Column(String, nullable=True)
     __table_args__ = (
         ForeignKeyConstraint(
             ['pointID', 'project_name'], 
             ['bh.pointID', 'bh.project_name']
         ),
-        PrimaryKeyConstraint('pointID', 'project_name', 'name', 'depth', name='pk_bhparams')
+        #PrimaryKeyConstraint('pointID', 'project_name', 'name', 'samp_ref', 'depth', name='pk_bhparams')
     )
 
     

@@ -158,6 +158,7 @@ updatePlot(): void {
   });
 }
 zoomTo(project_name: string, x: number, y: number) {
+  this.isclicked0=true
   this.map.eachLayer((layer: any) => {
     if (layer != this.tile)
                 {this.map.removeLayer(layer);}
@@ -288,7 +289,7 @@ getProjects(): void {
         //add a reset tool to replot projects without bhs
         this.selectedProject= element['name']
         this.map.removeLayer(layer);
-        this.isclicked0=true
+        
         
         this.zoomTo(this.selectedProject, element['x'], element['y']);
       })
