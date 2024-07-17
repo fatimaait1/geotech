@@ -23,12 +23,7 @@ SECRET_KEY = "nmdcsecretkey"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 480 #8H
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-<<<<<<< HEAD
-models.Base.metadata.drop_all(bind=engine)
 models.Base.metadata.create_all(bind=engine)
-=======
-# models.Base.metadata.create_all(bind=engine)
->>>>>>> ba441bbeb82653aa148c18feb7351f0fa5b92aaf
 app = FastAPI()
 
 origins = [

@@ -10,11 +10,7 @@ def get_uuid():
 
 class User(Base):
     __tablename__ = 'users'
-<<<<<<< HEAD
-    #__table_args__ = {'schema': 'bh'}
-=======
     __table_args__ = {'schema': 'bh'}
->>>>>>> ba441bbeb82653aa148c18feb7351f0fa5b92aaf
     username = Column(String, primary_key=True, unique=True, index=True)
     password = Column(String, nullable=False)
     status = Column(String, default='verified')
@@ -22,11 +18,7 @@ class User(Base):
 
 class Project(Base):
     __tablename__ = 'projects'
-<<<<<<< HEAD
-    #__table_args__ = {'schema': 'bh'}
-=======
     __table_args__ = {'schema': 'bh'}
->>>>>>> ba441bbeb82653aa148c18feb7351f0fa5b92aaf
     name = Column(String, unique=True, index=True, primary_key=True, nullable=False)
     project_id = Column(String, index=True, nullable=False)
     East = Column(DOUBLE_PRECISION, nullable=False)
@@ -35,25 +27,13 @@ class Project(Base):
     date = Column(Date, nullable=True)
 
 class BH(Base):
-    __tablename__ = 'bh'
-<<<<<<< HEAD
-    #__tablename__ = 'boreholes'
-    __table_args__ = (
-        PrimaryKeyConstraint('project_name', 'pointID', name='pk_project_name_pointID'),
-        {#'schema': 'bh',
-          'extend_existing': True}
-    )
-    pointID = Column(String, nullable=False)
-    project_name = Column(String, ForeignKey('projects.name', ondelete="CASCADE"), nullable=False)
-    #project_name = Column(String, ForeignKey('bh.projects.name', ondelete="CASCADE"), nullable=False)
-=======
+    __tablename__ = 'boreholes'
     __table_args__ = (
         PrimaryKeyConstraint('project_name', 'pointID', name='pk_project_name_pointID'),
         {'schema': 'bh', 'extend_existing': True}
     )
     pointID = Column(String, nullable=False)
     project_name = Column(String, ForeignKey('bh.projects.name', ondelete="CASCADE"), nullable=False)
->>>>>>> ba441bbeb82653aa148c18feb7351f0fa5b92aaf
     report_id = Column(String, nullable=True)
     East = Column(DOUBLE_PRECISION, nullable=False)
     North = Column(DOUBLE_PRECISION, nullable=False)
@@ -65,18 +45,10 @@ class geol(Base):
     __table_args__ = (
         ForeignKeyConstraint(
             ['pointID', 'project_name'],
-<<<<<<< HEAD
-            ['bh.pointID', 'bh.project_name']
-            #['bh.boreholes.pointID', 'bh.boreholes.project_name']
-        ),
-        PrimaryKeyConstraint('pointID', 'project_name', 'depth_from', 'depth_to', name='pk_geol'),
-        #{'schema': 'bh'}
-=======
             ['bh.boreholes.pointID', 'bh.boreholes.project_name']
         ),
         PrimaryKeyConstraint('pointID', 'project_name', 'depth_from', 'depth_to', name='pk_geol'),
         {'schema': 'bh'}
->>>>>>> ba441bbeb82653aa148c18feb7351f0fa5b92aaf
     )
     depth_from = Column(DOUBLE_PRECISION, nullable=False)
     depth_to = Column(DOUBLE_PRECISION, nullable=False)
@@ -89,16 +61,9 @@ class bhparams(Base):
     __table_args__ = (
         ForeignKeyConstraint(
             ['pointID', 'project_name'],
-<<<<<<< HEAD
-            ['bh.pointID', 'bh.project_name']
-            #['bh.boreholes.pointID', 'bh.boreholes.project_name']
-        ),
-        #{'schema': 'bh'}
-=======
             ['bh.boreholes.pointID', 'bh.boreholes.project_name']
         ),
         {'schema': 'bh'}
->>>>>>> ba441bbeb82653aa148c18feb7351f0fa5b92aaf
     )
     id = Column(Text, primary_key=True, unique=True, default=get_uuid)
     name = Column(String, nullable=True)
@@ -107,10 +72,6 @@ class bhparams(Base):
     pointID = Column(String, nullable=False)
     project_name = Column(String, nullable=False)
     samp_ref = Column(String, nullable=True)
-<<<<<<< HEAD
-=======
-
->>>>>>> ba441bbeb82653aa148c18feb7351f0fa5b92aaf
 
 
 
