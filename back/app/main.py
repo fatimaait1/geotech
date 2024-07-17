@@ -23,6 +23,7 @@ SECRET_KEY = "nmdcsecretkey"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 480 #8H
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+models.Base.metadata.drop_all(bind=engine)
 models.Base.metadata.create_all(bind=engine)
 app = FastAPI()
 
@@ -88,10 +89,10 @@ def login(user: UserCreate, db: Session = Depends(get_db)):
     
 @app.get("/projects")
 def getProjects(Authorization: Annotated[str | None, Header()] = None, db: Session = Depends(get_db)):
-    print(Authorization)
+    #print(Authorization)
     try:
         payload = jwt.decode(Authorization, SECRET_KEY, algorithms=[ALGORITHM])
-        print(payload["user"])
+        #print(payload["user"])
         prjs= db.query(Project).all()
         data=[]
         for bh in prjs:
@@ -107,38 +108,61 @@ async def createProject(Files: List[UploadFile] = File(...), db: Session = Depen
     for bh_file in Files:
         if bh_file:
             try:
+                    boreholes= None
                     filename = bh_file.filename.lower()
                     proj_in = Proj(init='epsg:32640') #utm zone 40 northing/easting
                     proj_out = Proj(init='epsg:4326') #wgs84 long/lat
                     if filename.endswith('.xls') or filename.endswith('.xlsx') or filename.endswith('.xlsm'):
                         ff=  await bh_file.read()
-                        BHs = pd.read_excel(io.BytesIO(ff), sheet_name='POINT') 
-                        #print(BHs)
-                        BHs = BHs.dropna(subset=['PointID'])
-                        #BHs= BHs.fillna(value=None)
-                        #print(BHs)
-                        ISTPs = pd.read_excel(io.BytesIO(ff), sheet_name='ISPT') 
-                        ISTPs = ISTPs.dropna(subset=['PointID'])
-                        COREs = pd.read_excel(io.BytesIO(ff), sheet_name='CORE')
-                        COREs = COREs.dropna(subset=['PointID']) 
-                        UCSs = pd.read_excel(io.BytesIO(ff), sheet_name='UNCONF COMPR') 
-                        UCSs = UCSs.dropna(subset=['PointID'])
-                        GEOLs = pd.read_excel(io.BytesIO(ff), sheet_name='GEOL')
-                        GEOLs = GEOLs.dropna(subset=['PointID'])
-                        filename = bh_file.filename.lower()
-                        project_name= filename.split('.')[0]
-                        print(project_name)
-                        first_row = BHs.iloc[0]
-                        project_East = float(first_row['East'])
-                        project_North = float(first_row['North'])
-                        new_project= Project(name= project_name, project_id= project_name, East= project_East, North= project_North, geom= from_shape(Point(transform(proj_in, proj_out, project_East, project_North))))
-                        db.add(new_project)
-                        db.commit()
+                        test= pd.ExcelFile(ff)
+                        sheet_names= test.sheet_names
+                        BHs = None
+                        ISTPs = None
+                        COREs = None
+                        UCSs = None
+                        GEOLs = None
+                        if ('POINT' in sheet_names):
+                            BHs = pd.read_excel(io.BytesIO(ff), sheet_name='POINT') 
+                            if ('HOLE_NATE' in BHs.columns and 'HOLE_NATN' in BHs.columns and not BHs['HOLE_NATE'].isnull().all()):
+                                BHs['East'] = BHs['HOLE_NATE']
+                                BHs['North'] = BHs['HOLE_NATN']
+                            BHs = BHs.dropna(subset=['PointID', 'East', 'North', 'Elevation'])
+
+                        if ('ISPT' in sheet_names):
+                            ISTPs = pd.read_excel(io.BytesIO(ff), sheet_name='ISPT') 
+                            ISTPs = ISTPs.dropna(subset=['PointID', 'Depth', 'ISPT_REP'])
+                        
+                        if ('CORE' in sheet_names):
+                            COREs = pd.read_excel(io.BytesIO(ff), sheet_name='CORE')
+                            COREs = COREs.dropna(subset=['PointID', 'Depth', 'CORE_PREC', 'CORE_SREC', 'CORE_RQD']) 
+                            #print(COREs)
+
+                        if ('UNCONF COMPR' in sheet_names):
+                           UCSs = pd.read_excel(io.BytesIO(ff), sheet_name='UNCONF COMPR') 
+                           UCSs = UCSs.dropna(subset=['PointID', 'Depth', 'Strength'])
+
+                        if ('GEOL' in sheet_names):
+                           GEOLs = pd.read_excel(io.BytesIO(ff), sheet_name='GEOL')
+                           GEOLs = GEOLs.dropna(subset=['PointID', 'Depth', 'GEOL_BASE', 'GEOL_LEG', 'GEOL_DESC'])
+
+
                         if BHs is not None and not BHs.empty:
+                            project_name= filename[: filename.index('.xls')]
+                            boreholes = BHs.iloc[:, 0].tolist()
+                            print(boreholes)
+                            first_row = BHs.iloc[0]
+                            project_East = float(first_row['East'])
+                            project_North = float(first_row['North'])
+                            new_project= Project(name= project_name, project_id= project_name, East= project_East, North= project_North, geom= from_shape(Point(transform(proj_in, proj_out, project_East, project_North))))
+                            db.add(new_project)
+                            db.commit()
+                            db.refresh(new_project)
                             for _, row in BHs.iterrows():
                                 pointID= row['PointID']
-                                print(pointID)
-                                report_id= row['Report']
+                                if ('Report' in BHs.columns):
+                                    report_id= row['Report']
+                                else:
+                                    report_id= ''
                                 Elevation = row['Elevation']
                                 East= float(row['East'])
                                 North= float(row['North'])
@@ -154,7 +178,7 @@ async def createProject(Files: List[UploadFile] = File(...), db: Session = Depen
                                 North=North,
                                 geom=geom)
                                 db.add(new_entry)
-                            #db.commit()
+                            db.commit()
                     elif filename.endswith('.ags'):
                         frames_data = {}
                         ags_content0 = await bh_file.read()
@@ -228,29 +252,33 @@ async def createProject(Files: List[UploadFile] = File(...), db: Session = Depen
                                             j += 1 
                                     frames_data[frame_name] = pd.DataFrame(processed_lines, columns=cleaned_columns)
   
+
                         project= frames_data.get('PROJ')
-                        first_row0 = project.iloc[0]
-                        project_id= first_row0['PROJ_ID']
-                        project_name= first_row0['PROJ_NAME']
-                        print(project_name)
-                        date= first_row0['PROJ_DATE']
-                        project_date= datetime.strptime(date, "%d/%m/%Y").date()
                         BHs = frames_data.get('HOLE')   
-                        if BHs is not None and not BHs.empty:
+                        if BHs is not None and project is not None and not BHs.empty:
+                            first_row0 = project.iloc[0]
+                            project_id= first_row0['PROJ_ID']
+                            project_name= first_row0['PROJ_NAME']
+                            #print(project_name)
+                            date= first_row0['PROJ_DATE']
+                            if (date.strip()):
+                                project_date= datetime.strptime(date, "%d/%m/%Y").date()
+                            else:
+                                project_date= None
                             if ('HOLE_LOCX' in BHs.columns and 'HOLE_LOCY' in BHs.columns and 'HOLE_LOCZ' in BHs.columns):
                                 BHs= BHs.rename(columns={'HOLE_ID': 'PointID', 'HOLE_LOCY': 'North', 'HOLE_LOCX': 'East', 'HOLE_LOCZ':'Elevation' })
                             else:
                                 BHs=BHs.rename(columns={'HOLE_ID': 'PointID', 'HOLE_NATN': 'North', 'HOLE_NATE': 'East', 'HOLE_GL':'Elevation' })
                             BHs = BHs[['PointID', 'East', 'North', 'Elevation']]
-                            BHs = BHs.dropna(subset=['East', 'North'])
-                            
-                        first_row = BHs.iloc[0]
-                        project_East = float(first_row['East'])
-                        project_North = float(first_row['North'])
-                        new_project= Project(name= project_name, project_id= project_id, date=project_date, East= project_East, North= project_North, geom= from_shape(Point(transform(proj_in, proj_out, project_East, project_North))))
-                        db.add(new_project)
-                        db.commit()
-                        if BHs is not None and not BHs.empty:
+                            BHs = BHs.dropna(subset=['PointID','East', 'North'])
+                            boreholes = BHs.iloc[:, 0].tolist()
+                            first_row = BHs.iloc[0]
+                            project_East = float(first_row['East'])
+                            project_North = float(first_row['North'])
+                            new_project= Project(name= project_name, project_id= project_id, date=project_date, East= project_East, North= project_North, geom= from_shape(Point(transform(proj_in, proj_out, project_East, project_North))))
+                            db.add(new_project)
+                            db.commit()
+                            db.refresh(new_project)
                             for _, row in BHs.iterrows():
                                 pointID= row['PointID']
                                 Elevation = row['Elevation']
@@ -269,9 +297,10 @@ async def createProject(Files: List[UploadFile] = File(...), db: Session = Depen
                             )
                                 db.add(new_entry)
 
-                            #db.commit()
+                            db.commit()
+
                         GEOLs = frames_data.get('GEOL')
-                        if GEOLs is not None and not GEOLs.empty:
+                        if  GEOLs is not None and not GEOLs.empty:
                             GEOLs= GEOLs[['HOLE_ID', 'GEOL_TOP', 'GEOL_BASE', 'GEOL_LEG']]
                             GEOLs['GEOL_LEG'] = GEOLs['GEOL_LEG'].replace(result_dict)
                             GEOLs.rename(columns={'HOLE_ID': 'PointID', 'GEOL_TOP': 'Depth','GEOL_LEG': 'GEOL_DESC'}, inplace=True)
@@ -280,14 +309,14 @@ async def createProject(Files: List[UploadFile] = File(...), db: Session = Depen
 
 
                         COREs = frames_data.get('CORE')
-                        if COREs is not None and not COREs.empty:
-                            COREs= COREs[['HOLE_ID', 'CORE_TOP', 'CORE_BOT', 'CORE_PREC', 'CORE_SREC', 'CORE_RQD']]
+                        if  COREs is not None and not COREs.empty:
+                            COREs= COREs[['HOLE_ID', 'CORE_TOP', 'CORE_PREC', 'CORE_SREC', 'CORE_RQD']]
                             COREs.rename(columns={'HOLE_ID': 'PointID', 'CORE_TOP': 'Depth'}, inplace=True)
                             COREs.dropna(how='any', inplace=True)
 
 
                         ISTPs = frames_data.get('ISPT') 
-                        if ISTPs is not None and not ISTPs.empty:
+                        if  ISTPs is not None and not ISTPs.empty:
                             if 'ISPT_REP' in ISTPs.columns and ISTPs['ISPT_REP'][0] != '':
                            #ISTPs= ISTPs[['HOLE_ID', 'ISPT_TOP', 'ISPT_NVAL', 'ISPT_REP']]
                                ISTPs['ISPT_NVAL'] = ISTPs['ISPT_REP']
@@ -297,63 +326,96 @@ async def createProject(Files: List[UploadFile] = File(...), db: Session = Depen
                         UCSs = None
                     
 
-
-                    if GEOLs is not None and not GEOLs.empty:
+                    
+                    if boreholes is not None and GEOLs is not None and not GEOLs.empty:
                         for _, row in GEOLs.iterrows():
                             pointID= row['PointID']
-                            geol_desc = row['GEOL_DESC']
-                            depthFrom= row['Depth']
-                            depthTo = row['GEOL_BASE']
-                            new_entry= geol(pointID= pointID, project_name=project_name, depth_from=depthFrom, depth_to= depthTo, geol_value=geol_desc)
-                            db.add(new_entry)
-                        
-                    #do the same for core, istp, ucs
-                    if ISTPs is not None and not ISTPs.empty:
+                            if (pointID in boreholes):
+                               if (filename.endswith('.xls') or filename.endswith('.xlsx') or filename.endswith('.xlsm')):
+                                    if (isinstance(row['GEOL_LEG'], (int))):
+                                        if (len(row['GEOL_DESC'].split(',')) > 1): #if geol is a long text, we take the 1st upper word
+                                            match = re.search(r'\b[A-Z]{2,}\b', row['GEOL_DESC'])
+                                            if match:
+                                                geol_desc= match.group(0)
+                                            else:
+                                                geol_desc = row['GEOL_DESC']
+                                        else:
+                                            geol_desc = row['GEOL_DESC']
+
+                                    else:
+                                        geol_desc = row['GEOL_LEG']
+                               else:
+                                   geol_desc = row['GEOL_DESC']
+                               depthFrom= row['Depth']
+                               depthTo = row['GEOL_BASE']
+                               new_entry= geol(pointID= pointID, project_name=project_name, depth_from=depthFrom, depth_to= depthTo, geol_value=geol_desc)
+                               db.add(new_entry)
+                        db.commit()
+                    if boreholes is not None and ISTPs is not None and not ISTPs.empty:
                         for _, row in ISTPs.iterrows():
                             pointID= row['PointID']
-                            depth= row['Depth']
-                            if ('/' in str(row['ISPT_REP'])):
-                                istp_value = str(row['ISPT_REP']).split('/')[0]
-                            elif ('>' in str(row['ISPT_REP'])):
-                                istp_value = str(row['ISPT_REP']).split('>')[1]
-                            elif ('<' in str(row['ISPT_REP'])):
-                                istp_value = str(row['ISPT_REP']).split('<')[1]
-                            else:
-                                istp_value = str(row['ISPT_REP'])
-                            new_entry= bhparams(name= 'ISPT', pointID= pointID, project_name=project_name, depth=depth, value=istp_value)
-                            db.add(new_entry)
-                        
-                    if COREs is not None and not COREs.empty:
+                            if (pointID in boreholes):
+                                depth= row['Depth']
+                                if ('/' in str(row['ISPT_REP'])):
+                                    istp_value = str(row['ISPT_REP']).split('/')[0]
+                                elif ('>' in str(row['ISPT_REP'])):
+                                    istp_value = str(row['ISPT_REP']).split('>')[1]
+                                elif ('<' in str(row['ISPT_REP'])):
+                                    istp_value = str(row['ISPT_REP']).split('<')[1]
+                                else:  
+                                    istp_value = str(row['ISPT_REP'])
+                                if(istp_value.isdigit()):
+                                    new_entry= bhparams(name= 'ISPT', pointID= pointID, project_name=project_name, depth=depth, value=istp_value)
+                                    db.add(new_entry)
+                        db.commit()
+                    if boreholes is not None and COREs is not None and not COREs.empty:
                         for _, row in COREs.iterrows():
                             pointID= row['PointID']
-                            depth= row['Depth']
-                            #core_bot = row['CORE_BOT']
-                            core_prec= row['CORE_PREC']
-                            core_srec= row['CORE_SREC']
-                            core_rqd= row['CORE_RQD']
-                            if isinstance(core_prec, (float)):
-                               new_entry1= bhparams(name= 'CORE_PREC', pointID= pointID, project_name=project_name, depth=depth, value=core_prec)
-                               db.add(new_entry1)
-                            if isinstance(core_srec, (float)):
-                               new_entry2= bhparams(name= 'CORE_SREC', pointID= pointID, project_name=project_name, depth=depth, value=core_srec)
-                               db.add(new_entry2)
-                            if isinstance(core_rqd, (float)):
-                               new_entry3= bhparams(name= 'CORE_RQD', pointID= pointID, project_name=project_name, depth=depth, value=core_rqd)
-                               db.add(new_entry3)
-                        
-                    if UCSs is not None and not UCSs.empty:  
+                            if (pointID in boreholes):
+                                #print(pointID, 'yes core pointid is in boreholes')
+                                depth= row['Depth']
+                                #core_bot = row['CORE_BOT']
+                                core_prec= row['CORE_PREC']
+                                core_srec= row['CORE_SREC']
+                                core_rqd= row['CORE_RQD']
+                                if(filename.endswith('.ags')):
+                                    if (core_prec.isdigit()):
+                                        new_entry1= bhparams(name= 'CORE_PREC', pointID= pointID, project_name=project_name, depth=depth, value=core_prec)
+                                        db.add(new_entry1)
+                                    if (core_srec.isdigit()):
+                                        new_entry2= bhparams(name= 'CORE_SREC', pointID= pointID, project_name=project_name, depth=depth, value=core_srec)
+                                        db.add(new_entry2)
+                                    if (core_rqd.isdigit()):
+                                        new_entry3= bhparams(name= 'CORE_RQD', pointID= pointID, project_name=project_name, depth=depth, value=core_rqd)
+                                        db.add(new_entry3)
+                                #print(core_prec.isdigit())
+                                #print(type(core_prec))
+                                #print(isinstance(core_srec, (float)) or isinstance(core_srec, (int)))
+                                else: 
+                                    if (isinstance(core_prec, (float)) or isinstance(core_prec, (int))):
+                                        new_entry1= bhparams(name= 'CORE_PREC', pointID= pointID, project_name=project_name, depth=depth, value=core_prec)
+                                        db.add(new_entry1)
+                                    if (isinstance(core_srec, (float)) or isinstance(core_srec, (int))):
+                                        new_entry2= bhparams(name= 'CORE_SREC', pointID= pointID, project_name=project_name, depth=depth, value=core_srec)
+                                        db.add(new_entry2)
+                                    if (isinstance(core_rqd, (float)) or isinstance(core_rqd, (int))):
+                                        new_entry3= bhparams(name= 'CORE_RQD', pointID= pointID, project_name=project_name, depth=depth, value=core_rqd)
+                                        db.add(new_entry3)
+                        db.commit()
+                    if boreholes is not None and UCSs is not None and not UCSs.empty:  
                        for _, row in UCSs.iterrows():
                         pointID= row['PointID']
-                        depth= row['Depth']
-                        strength = row['Strength']
-                        samp_ref= row['SAMP_REF']
-                        new_entry= bhparams(samp_ref= samp_ref, name= 'UCS', pointID= pointID, project_name=project_name, depth=depth, value=strength)
-                        db.add(new_entry)
-                    
-                    db.commit()
+                        if (pointID in boreholes):
+                            depth= row['Depth']
+                            strength = row['Strength']
+                            samp_ref= row['SAMP_REF']
+                            new_entry= bhparams(samp_ref= samp_ref, name= 'UCS', pointID= pointID, project_name=project_name, depth=depth, value=strength)
+                            db.add(new_entry)
+                       db.commit()
+
             except Exception as e:
                 traceback.print_exc()
-                print ('errrrrrrrrrrror', e)
+                print ('An error is detected:', e)
 
     return {'message': 'Project created.'}, 200
             
@@ -375,12 +437,23 @@ def modify_project(project_name: str, project_update: ProjectUpdate, db: Session
 
 @app.delete("/projects/{project_name}", status_code=204)
 def delete_project(project_name: str, db: Session = Depends(get_db)):
+    '''
+    bhs= db.query(BH).filter(BH.project_name == project_name).all()
+    #geols= db.query(geol).filter(geol.project_name == project_name).all()
+    #bhparamms=  db.query(bhparams).filter(bhparams.project_name == project_name).all()
     project = db.query(Project).filter(Project.name == project_name).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     
+    for g in geols:
+        db.delete(g)
+    for p in bhparamms:
+        db.delete(p)
+    for b in bhs:
+        db.delete(b)
+
     db.delete(project)
-    db.commit()
+    db.commit() '''
     return {"message": "Project deleted successfully"}
 
 

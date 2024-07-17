@@ -21,7 +21,7 @@ searchText= '';
 projectNameToModify: string = '';
 role = localStorage.getItem('role');
 username= '';
-parameters: string[]= ['ISPT','CORE_PREC','CORE_SREC','CORE_RQD', 'Strentgh']
+parameters: string[]= ['ISPT','CORE_PREC','CORE_SREC','CORE_RQD', 'UCS']
 selectedParameter: string= 'ISPT';
 selectedBH: string =''
 selectedFiles: File[] = [];
@@ -35,7 +35,7 @@ isclicked: boolean = false;
 isclicked0: boolean = false;
 tile: any
 ngOnInit(): void {
-  if (typeof window != 'undefined' && typeof window != 'undefined') {
+  if (typeof window !== 'undefined' && window !== undefined) {
     import('leaflet').then(L => {
       this.map= L.map('map');
       const customControl = L.Control.extend({
@@ -53,6 +53,7 @@ ngOnInit(): void {
           container.style.cursor = 'pointer';
       
           container.onclick = () => {
+            this.Alldata = []
             this.isclicked= false
             this.isclicked0=false
             this.map.eachLayer((layer: any) => {
@@ -94,9 +95,7 @@ plotGraphs(): void {
     this.projectservice.getGraphs(this.selectedProject, this.selectedBH, this.selectedParameter).subscribe((response: any) => {
       const data = response.data;
       if (data.length === 0) {
-
         this.msg= 'no associated ' + this.selectedParameter + ' data to the selected borehole: ' + this.selectedBH
-
         alert(this.msg)
       }
       else {
@@ -158,6 +157,8 @@ updatePlot(): void {
   });
 }
 zoomTo(project_name: string, x: number, y: number) {
+  this.Alldata = []
+  this.isclicked=false
   this.isclicked0=true
   this.map.eachLayer((layer: any) => {
     if (layer != this.tile)
@@ -169,7 +170,7 @@ zoomTo(project_name: string, x: number, y: number) {
 
   this.projectservice.getBHs(project_name).subscribe(response => {
     const bhs= response.data
-    console.log(bhs)
+    //console.log(bhs)
     if (bhs.length == 0) {alert('No Data found in the uploaded file')}
     import('leaflet').then(L => {
       if (typeof window != undefined) {
@@ -239,7 +240,9 @@ addProject(): void {
     
   });
   dialogRef.componentInstance.projectModified.subscribe(() => {
+    this.Alldata= []
     this.getProjects();
+
   });
 
 }

@@ -34,8 +34,10 @@ export class LoginComponent {
               localStorage.setItem('token', response.access_token);
               localStorage.setItem('role', response.role);
             }
-            else {this.router.navigate(['/']);
-            console.log(response.message);
+            else {
+              alert(response.message)
+              this.router.navigate(['/']);
+            //console.log(response.message);
             }
           },
           error => {

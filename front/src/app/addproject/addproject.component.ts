@@ -38,6 +38,7 @@ submitProject(): void {
     formData.append('Files', this.selectedFiles[i]);
   }
     this.projectservice.addProject(formData).subscribe((response) => {
+      
       console.log(response)
       if (response[0].message == 'Project created.') {
         console.log('project added')
@@ -47,6 +48,7 @@ submitProject(): void {
     }, 
     (error: any) => {
       console.log(error)
+      alert(error.error.detail)
     }
   )
   

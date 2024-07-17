@@ -16,14 +16,13 @@ export class SignupComponent {
   constructor(private router: Router, private loginService: AuthService) {}
   SignupForm= new FormGroup({username: new FormControl('@nmdc-group.com', [Validators.required, Validators.email, emailDomainValidator('nmdc-group.com')]), password: new FormControl('', [Validators.required])})
   loginSubscription: Subscription | undefined;
-
   ngOnInit() { }
 
   submitSignup() {
     if (this.SignupForm.valid) {
       //console.log(this.SignupForm.value)
       this.loginSubscription = this.loginService.signup(this.SignupForm.value).subscribe(response => {
-        console.log(response)
+        alert(response[0].message);
         if (response[0].message == 'Account created.')  
            {
             this.router.navigate(['/']);  } // Navigate to login page after signup
