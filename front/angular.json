@@ -41,10 +41,8 @@
             "src/assets/vendor/sb-admin-2.min.js",
             "node_modules/bootstrap/dist/js/bootstrap.js"],
             "server": "src/main.server.ts",
-            "prerender": true,
-            "ssr": {
-              "entry": "server.ts"
-            }
+              "prerender": false,
+              "ssr": false
           },
           "configurations": {
             "production": {

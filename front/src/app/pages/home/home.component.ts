@@ -1,10 +1,10 @@
 import { Component, Inject, OnInit, PLATFORM_ID } from '@angular/core';
 import { Project, ProjectService } from '../../services/project.service';
 import { Router, RouterLink, RouterOutlet } from '@angular/router';
-import { AddprojectComponent } from '../../addproject/addproject.component';
+import { AddprojectComponent } from '../addproject/addproject.component';
 import {MatDialog} from '@angular/material/dialog'
 import { FormControl, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ModifyprojectComponent } from '../../modifyproject/modifyproject.component';
+import { ModifyprojectComponent } from '../modifyproject/modifyproject.component';
 import { isPlatformBrowser } from '@angular/common';
 @Component({
   selector: 'app-home',

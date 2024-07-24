@@ -1,8 +1,8 @@
 import { Component, EventEmitter, Inject, Output } from '@angular/core';
-import { UserService } from '../services/user.service';
+import { UserService } from '../../services/user.service';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { emailDomainValidator } from '../validators/valid';
+import { emailDomainValidator } from '../../validators/valid';
 
 @Component({
   selector: 'app-modifyuser',

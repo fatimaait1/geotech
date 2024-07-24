@@ -1,7 +1,6 @@
 import { Component, EventEmitter, Output } from '@angular/core';
 import { FormBuilder, FormControl, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
-import { latitudeValidator, longitudeValidator} from '../validators/valid';
-import { ProjectService } from '../services/project.service';
+import { ProjectService } from '../../services/project.service';
 import { MatDialogRef } from '@angular/material/dialog';
 import { LeafletMouseEvent, Marker, latLng, tileLayer } from 'leaflet';
 

@@ -1,7 +1,7 @@
 import { Component } from '@angular/core';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { Router, RouterLink, RouterOutlet } from '@angular/router';
-import { User, UserService } from '../services/user.service';
+import { User, UserService } from '../../services/user.service';
 import { ModifyuserComponent } from '../modifyuser/modifyuser.component';
 import { MatDialog } from '@angular/material/dialog';
 
