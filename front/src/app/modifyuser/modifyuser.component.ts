@@ -14,14 +14,17 @@ import { emailDomainValidator } from '../validators/valid';
 export class ModifyuserComponent {
   username: string= '';
   role: string= '';
+  status: string= '';
   @Output() userModified = new EventEmitter<void>();
   modifyuserForm: any;
   constructor(private userservice: UserService, private dialogRef: MatDialogRef<ModifyuserComponent>, @Inject(MAT_DIALOG_DATA) public data: any) {
   this.username= data.userName
   this.role= data.role
+  this.status= data.status
   this.modifyuserForm = new FormGroup({
     username: new FormControl(this.username, [Validators.required, emailDomainValidator('nmdc-group.com')]),
     role: new FormControl(this.role, [Validators.required]),
+    status: new FormControl(this.status, [Validators.required])
   });
   }
  

@@ -35,7 +35,7 @@ export class LoginComponent {
               localStorage.setItem('role', response.role);
             }
             else {
-              alert(response.message)
+              alert(response[0].message)
               this.router.navigate(['/']);
             //console.log(response.message);
             }

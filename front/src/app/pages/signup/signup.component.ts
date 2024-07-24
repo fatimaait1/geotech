@@ -22,7 +22,7 @@ export class SignupComponent {
     if (this.SignupForm.valid) {
       //console.log(this.SignupForm.value)
       this.loginSubscription = this.loginService.signup(this.SignupForm.value).subscribe(response => {
-        alert(response[0].message);
+        alert(response[0].message + '. Account verification is pending.');
         if (response[0].message == 'Account created.')  
            {
             this.router.navigate(['/']);  } // Navigate to login page after signup

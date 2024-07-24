@@ -1,10 +1,12 @@
 import io
+import random
 import re
 import traceback
 from typing import Annotated, List, Optional
 from fastapi import FastAPI, Depends, File, HTTPException, Header, Request, UploadFile, status, Query
 import numpy as np
 import pandas as pd
+import json
 from sqlalchemy.orm import Session
 from .database import SessionLocal, engine
 from . import models, schemas
@@ -18,6 +20,9 @@ from shapely import wkb
 from shapely.geometry import Point, Polygon
 from pyproj import Proj, transform
 from geoalchemy2.shape import from_shape
+from scipy.interpolate import griddata, LinearNDInterpolator
+from scipy.spatial import ConvexHull, Delaunay
+import plotly.graph_objects as go
 
 SECRET_KEY = "nmdcsecretkey"
 ALGORITHM = "HS256"
@@ -57,7 +62,7 @@ def signup(user: UserCreate, db: Session = Depends(get_db)):
         return {'message': 'User already exists'}, 200    
     else:
         hashed_password = pwd_context.hash(password)
-        new_user = User(username=username, password=hashed_password, role='admin') 
+        new_user = User(username=username, password=hashed_password, role='nonadmin', status='unverified') 
         db.add(new_user)
         db.commit()
         db.refresh(new_user)
@@ -80,10 +85,10 @@ def login(user: UserCreate, db: Session = Depends(get_db)):
     username = user.username
     password = user.password
     user = db.query(User).filter(User.username==username).first()
-    if user and pwd_context.verify(password, user.password):
+    if user and pwd_context.verify(password, user.password) and user.status == 'verified':
         access_token = create_access_token(data={"user": user.username})
         return {"access_token": access_token, "role": user.role}
-    return {'message': 'Incorrect username or password'}, 404
+    return {'message': 'Incorrect username or password or unverified status.'}, 404
 
     
 @app.get("/projects")
@@ -436,24 +441,17 @@ def modify_project(project_name: str, project_update: ProjectUpdate, db: Session
 
 @app.delete("/projects/{project_name}", status_code=204)
 def delete_project(project_name: str, db: Session = Depends(get_db)):
-    '''
-    bhs= db.query(BH).filter(BH.project_name == project_name).all()
-    #geols= db.query(geol).filter(geol.project_name == project_name).all()
-    #bhparamms=  db.query(bhparams).filter(bhparams.project_name == project_name).all()
     project = db.query(Project).filter(Project.name == project_name).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     
-    for g in geols:
-        db.delete(g)
-    for p in bhparamms:
-        db.delete(p)
-    for b in bhs:
-        db.delete(b)
-
+    
+    db.query(geol).filter(geol.project_name == project_name).delete()
+    db.query(bhparams).filter(bhparams.project_name == project_name).delete()
+    db.query(BH).filter(BH.project_name == project_name).delete()
     db.delete(project)
-    db.commit() '''
-    return {"message": "Project deleted successfully"}
+    db.commit()
+    return {"message": f"Project {project_name} and related data deleted successfully"}
 
 
 @app.get("/users")
@@ -465,7 +463,7 @@ def getUsers(Authorization: Annotated[str | None, Header()] = None, db: Session 
         users= db.query(User).all()
         data=[]
         for bh in users:
-            data.append({'name': bh.username, 'role': bh.role})
+            data.append({'name': bh.username, 'role': bh.role, 'status': bh.status})
         return {'data': data}
     except JWTError:
         return {'error': 'invalid token'}, 401
@@ -541,24 +539,166 @@ def getData(project: str = Query(...), bhh: str = Query(...), parameter: str = Q
      
 @app.get("/geol/{project_name}")
 def getGeol(project_name: str, db: Session = Depends(get_db)):
-    geols= db.query(geol).filter(geol.project_name == project_name).all()
-    #print(geols)
-    data=[]
+    geols = db.query(geol).filter(geol.project_name == project_name).all()
+    data = []
+    
     for v in geols: 
-        bh= db.query(BH).filter(BH.pointID== v.pointID, BH.project_name== project_name).first()
-        #print(bh.pointID)
-        geometry = wkb.loads(bytes(bh.geom.data))
-        val= v.geol_value.lower()
-        if pd.isna(bh.Elevation) or pd.isna(geometry.y) or pd.isna(geometry.x):
+        bh = db.query(BH).filter(BH.pointID == v.pointID, BH.project_name == project_name).first()
+        if not bh or pd.isna(bh.Elevation):
             continue
+        geometry = wkb.loads(bytes(bh.geom.data))
+        if pd.isna(geometry.y) or pd.isna(geometry.x):
+            continue
+        val = v.geol_value.lower()
         data.append({
-                'name': bh.pointID,
-                'x': geometry.x,
-                'y': geometry.y,
-                'Elev': bh.Elevation,
-                'depthFrom': v.depth_from,
-                'depthTo': v.depth_to,
-                'geol_desc': val,
-            })
-    print(data)
+            'name': bh.pointID,
+            'x': geometry.x,
+            'y': geometry.y,
+            'Elev': bh.Elevation,
+            'depthFrom': v.depth_from,
+            'depthTo': v.depth_to,
+            'geol_desc': val,
+        })
     return {'data': data}
+
+@app.get("/interpo/{project_name}")
+def getInterpo(project_name: str, db: Session = Depends(get_db)):
+    geols = db.query(geol).filter(geol.project_name == project_name).all()
+    unique_geol_desc = set()
+    all_points = []
+    all_values = []
+    fig = go.Figure()
+    num= db.query(BH).filter(BH.project_name == project_name).count()
+    print(num)
+    if (num < 2):
+        raise ValueError("At least 2 boreholes are required to compute the interpolation")
+  
+    for v in geols: 
+        bh = db.query(BH).filter(BH.pointID == v.pointID, BH.project_name == project_name).first()
+        if not bh or pd.isna(bh.Elevation):
+            continue
+        geometry = wkb.loads(bytes(bh.geom.data))
+        val = v.geol_value.lower()
+        unique_geol_desc.add(val)
+        if pd.isna(geometry.y) or pd.isna(geometry.x):
+            continue
+
+        z_start = bh.Elevation - v.depth_from
+        z_end = bh.Elevation - v.depth_to
+        z_values = np.linspace(z_start, z_end, 20)
+        points = np.array([[geometry.x, geometry.y, z] for z in z_values])
+        all_points.extend(points)
+        all_values.extend([val] * len(points))
+
+    all_points = np.array(all_points)
+    all_values = np.array(all_values)
+
+    # Convert geological descriptions to numerical values
+    geol_desc_to_num = {desc: i for i, desc in enumerate(unique_geol_desc)}
+    num_to_geol_desc = {i: desc for desc, i in geol_desc_to_num.items()}
+    print(num_to_geol_desc)
+    all_values_numeric = np.array([geol_desc_to_num[val] for val in all_values])
+
+    # Compute convex hull
+    #hull = ConvexHull(all_points)
+
+    # Extract the vertices of the convex hull
+    #hull_points = all_points[hull.vertices]
+
+    # Create a Delaunay triangulation within the convex hull to generate grid points
+    #tri = Delaunay(hull_points)
+
+    # Find min and max coordinates
+    #x_min, x_max = np.min(hull_points[:, 0]), np.max(hull_points[:, 0])
+    #y_min, y_max = np.min(hull_points[:, 1]), np.max(hull_points[:, 1])
+    #z_min, z_max = np.min(hull_points[:, 2]), np.max(hull_points[:, 2])
+
+
+
+    x_min, x_max = np.min(all_points[:, 0]), np.max(all_points[:, 0])
+    y_min, y_max = np.min(all_points[:, 1]), np.max(all_points[:, 1])
+    z_min, z_max = np.min(all_points[:, 2]), np.max(all_points[:, 2])
+    # Generate points within the convex hull
+    grid_points = np.array([[x, y, z] for x in np.linspace(x_min, x_max, 60)
+                            for y in np.linspace(y_min, y_max, 60)
+                            for z in np.linspace(z_min, z_max, 30)
+                            #if tri.find_simplex([x, y, z]) >= 0
+                            ])
+    # Interpolate values across the grid
+    interpolator = LinearNDInterpolator(all_points, all_values_numeric)
+    interpolated_values = interpolator(grid_points)
+
+    # Remove NaN values from interpolated values and their corresponding grid points
+    valid_indices = ~np.isnan(interpolated_values)
+    interpolated_values = interpolated_values[valid_indices]
+    grid_points = grid_points[valid_indices]
+
+    # Map numerical interpolated values back to categories
+    interpolated_values = [num_to_geol_desc[int(round(val))] for val in interpolated_values]
+    unique_values = list(set(interpolated_values))
+    interpolated_colors={}
+    for cat in unique_values:
+        interpolated_colors[cat] = get_random_color()
+
+    data= go.Scatter3d(
+        x=grid_points[:, 0],
+        y=grid_points[:, 1],
+        z=grid_points[:, 2],
+        mode='markers',
+        marker=dict(
+            symbol= 'square',
+            color=[interpolated_colors[category] for category in interpolated_values],
+            size=10,
+        ),
+        name='Interpolated Values',
+        showlegend=False
+    )  
+    fig.add_trace(data)
+
+    for category, color in interpolated_colors.items():
+        legend_entry = go.Scatter3d(
+            x=[None],
+            y=[None],
+            z=[None],
+            mode='markers',
+            marker=dict(
+                size=10,
+                symbol= 'square',
+                color=color,
+                opacity=1
+            ),
+            name=category,
+            showlegend= True
+        )
+        fig.add_trace(legend_entry)
+
+    fig.update_layout(
+    scene=dict(
+        xaxis=dict(title='X', showticklabels=False),
+        yaxis=dict(title='Y', showticklabels=False),
+        zaxis=dict(title='Z'),
+        aspectratio=dict(x=2, y=1, z=1)
+    ),
+    margin=dict(
+        l=0,
+        r=0,
+        b=0,
+        t=0
+    ),
+    width=930,
+    height=500,
+    showlegend=True,
+    #title='3D Geological Interpolation'
+)
+
+
+
+    return {'fig': json.loads(fig.to_json())}
+
+def get_random_color():
+    r = random.randint(210, 255)  # Red: 210-255
+    g = random.randint(180, 230)  # Green: 180-230
+    b = random.randint(150, 200)  # Blue: 150-200
+    return f'rgb({r},{g},{b})'
+
+

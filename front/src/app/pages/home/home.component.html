@@ -94,9 +94,30 @@
       {
       <div class="col-xl-7 col-lg-7 col-md-9">
         <div class="card">
-          <div class="card-header py-3 d-flex flex-row align-items-center">
-              All<input type="checkbox" [(ngModel)]="plotAll" (change)="plot3d()">
+          <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+              
               <b style="margin-left: 20px;">{{selectedProject}}</b>
+              <div class="dropdown">
+                <a class="dropdown-toggle" role="button" id="dropdownMenuLink0"
+                    data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="fas fa-ellipsis-v fa-sm fa-fw text-gray-400"></i>
+                </a>
+                <div class="dropdown-menu dropdown-menu-right shadow animated--fade-in"
+                    aria-labelledby="dropdownMenuLink0">
+                    
+                    <div class="dropdown-header">Display all project boreholes: </div>
+                  <div class="py-2 collapse-inner rounded">
+                      <div class="text-center mb-0">
+                            <label class="form-check-label">
+                             <input type="checkbox" [(ngModel)]="plotAll" (change)="plot3d()"/>
+                               All 
+                            </label>
+                          </div>
+                          
+                        </div>
+                    
+                </div>
+            </div>
       </div>
       
           <div class="card-body embed-responsive embed-responsive-16by9">
@@ -106,7 +127,7 @@
       </div>}
       @if (isclicked)
       {
-      <div class="col-xl-4 col-lg-4 col-md-4">
+      <div class="col-xl-5 col-lg-5 col-md-5">
         <div class="card">
           <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
           <b class="text-muted"><i class="bi bi-hand-index-thumb" style="margin-right: 8px;"></i>Select a parameter</b>

@@ -72,9 +72,3 @@ class bhparams(Base):
     pointID = Column(String, nullable=False)
     project_name = Column(String, nullable=False)
     samp_ref = Column(String, nullable=True)
-
-
-
-
-
-

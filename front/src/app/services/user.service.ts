@@ -5,6 +5,7 @@ import { Observable, map } from 'rxjs';
 export interface User {
   name: string;
   role: string;
+  status: string
 }
 @Injectable({
   providedIn: 'root'

@@ -63,4 +63,8 @@ get3D(project_name: string): Observable<any> {
 getGraphs(project_name: string, bhh: string, parameter: string): Observable<any> {
   return this.http.get<any>(`${this.baseUrl}/params/?project=${project_name}&bhh=${bhh}&parameter=${parameter}`, { headers: this.getAuthHeaders() });
 }
+getInterpo(project_name: string): Observable<any> {
+  return this.http.get<any>(`${this.baseUrl}/interpo/${project_name}`, { headers: this.getAuthHeaders() });
 }
+}
+

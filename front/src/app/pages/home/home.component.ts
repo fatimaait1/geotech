@@ -1,10 +1,11 @@
-import { Component, Inject, PLATFORM_ID } from '@angular/core';
+import { Component, Inject, OnInit, PLATFORM_ID } from '@angular/core';
 import { Project, ProjectService } from '../../services/project.service';
 import { Router, RouterLink, RouterOutlet } from '@angular/router';
 import { AddprojectComponent } from '../../addproject/addproject.component';
 import {MatDialog} from '@angular/material/dialog'
 import { FormControl, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ModifyprojectComponent } from '../../modifyproject/modifyproject.component';
+import { isPlatformBrowser } from '@angular/common';
 @Component({
   selector: 'app-home',
   standalone: true,
@@ -13,7 +14,7 @@ import { ModifyprojectComponent } from '../../modifyproject/modifyproject.compon
   styleUrl: './home.component.css'
 })
 export class HomeComponent {
-  constructor(private projectservice: ProjectService,  private router: Router, private dialog: MatDialog) {}
+  constructor(private projectservice: ProjectService,  private router: Router, private dialog: MatDialog, @Inject(PLATFORM_ID) private platformId: Object) {}
 projects: Project[]= [];
 map: any;
 filteredProjects: Project[]= [];
@@ -34,8 +35,14 @@ selectedProject=''
 isclicked: boolean = false;
 isclicked0: boolean = false;
 tile: any
+interpo: any
+isInterpo: boolean= false;
+timer: boolean= true;
 ngOnInit(): void {
-  if (typeof window !== 'undefined' && window !== undefined) {
+ // if (isPlatformBrowser(this.platformId) && typeof window !== undefined && window !== undefined) {
+  console.log('ngOnInit executed', this.platformId);
+  if (isPlatformBrowser(this.platformId) && window) {
+    console.log('Running in the browser');
     import('leaflet').then(L => {
       this.map= L.map('map');
       const customControl = L.Control.extend({
@@ -56,6 +63,7 @@ ngOnInit(): void {
             this.Alldata = []
             this.isclicked= false
             this.isclicked0=false
+            this.isInterpo= false
             this.map.eachLayer((layer: any) => {
                 this.map.removeLayer(layer);
             });
@@ -67,9 +75,11 @@ ngOnInit(): void {
       });
       
       this.map.addControl(new customControl());
+     
     })
     
-      this.getProjects();}
+    this.getProjects();
+   }
 }
 searchProjects() {
   this.filteredProjects = this.projects.filter(project =>
@@ -114,6 +124,10 @@ plotGraphs(): void {
 }
 
 updatePlot(): void {
+  var minval= 0
+  var maxval=0
+  var minelev= 0
+  var maxelev= 0
   const plots: Plotly.Data[] = [];
   console.log(this.Alldata)
   this.Alldata.forEach((item: { data: any; bh: string; }) => {
@@ -122,12 +136,15 @@ updatePlot(): void {
     //console.log(name)
     const elev = data.map((row: { [x: string]: any; }) => row['elev']);
     const value = data.map((row: { [x: string]: any; }) => row['value']);
-
+    minelev= Math.min(elev)
+    maxelev= Math.max(elev)
+    minval= Math.min(value)
+    maxval= Math.max(value)
     plots.push({
       x: value,
       y: elev,
       mode: 'markers',
-      marker: {size: 9},
+      marker: {symbol: 'square', size: 9},
       name: this.selectedParameter + ' - ' + name
     });
 
@@ -135,17 +152,17 @@ updatePlot(): void {
 
   import('plotly.js-dist-min').then(Plotly => {
     Plotly.react('plot', plots, {
-      xaxis: { title: this.selectedParameter, autorange: true, ticks: 'outside', tick0: 0 },
-      yaxis: { title: 'Z (Elevation-Depth)', autorange: true },
+      xaxis: { title: this.selectedParameter,  range: [0, maxval], autotick: true },
+      yaxis: { title: 'Z (Elevation-Depth)',  range:[minelev, maxelev],  autotick: true },
       legend: {
         x: 0,
         y: -1,
         orientation: 'v',
       },
       showlegend: true,
-      height: 450,
+      height: 600,
       margin: {
-        l: 50, r: 50, t: 40, b: 40
+        l: 80, r: 10, t: 40, b: 50
       },
       title: {
         text: this.selectedParameter,
@@ -346,16 +363,21 @@ logout(): void {
 }
 
 getRandomColor() {
-  const letters = '0123456789ABCDEF';
-  let color = '#';
-  for (let i = 0; i < 6; i++) {
-    color += letters[Math.floor(Math.random() * 16)];
-  }
-  return color;
+  const getRandomValue = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
+
+  const r = getRandomValue(210, 255); // Red: 210-255
+  const g = getRandomValue(180, 230); // Green: 180-230
+  const b = getRandomValue(150, 200); // Blue: 150-200
+
+  // Convert RGB values to hex
+  const toHex = (value: number) => value.toString(16).padStart(2, '0').toUpperCase();
+  
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
 plot3d(): void {
   this.projectservice.get3D(this.selectedProject).subscribe((response: any) => {
     this.data3d = response.data;
+    //console.log(response.interpolated)
     console.log(this.data3d)
     import('plotly.js-dist-min').then(Plotly => {
       var traces: Plotly.Data[] = [];
@@ -381,7 +403,7 @@ plot3d(): void {
             mode: 'lines',
             line: {
               color: colorScale[element['geol_desc']],
-              width: 25,
+              width: 30,
             },
             name: element['name'],
             type: 'scatter3d',
@@ -425,13 +447,13 @@ plot3d(): void {
         });
       });
       Plotly.newPlot('3d', traces, {
-        xaxis: { title: 'X-axis' },
-        yaxis: { title: 'Y-axis' },
+        xaxis: { title: 'X', showticklabels: false },
+        yaxis: { title: 'Y', showticklabels: false  },
         scene: {
           aspectratio: { x: 2, y: 1, z: 1 }
         },
         margin: {
-          l: 0, r: 10, b: 10, t: 20
+          l: 0, r: 0, b: 0, t:0
         },
         width: 930,
         height: 500,
@@ -440,4 +462,93 @@ plot3d(): void {
     });
   });
 }
+
+plotInterpo(): void {
+  this.timer= false
+  if (this.isInterpo)
+  {this.projectservice.getInterpo(this.selectedProject).subscribe((response: any) => {
+    const fig= response.fig
+    //this.interpo = response.interpolated;
+    console.log(response.fig)
+    //const gridPoints= response.grid_points;
+    //const interpolatedData = response.interpolated;
+    import('plotly.js-dist-min').then(Plotly => {
+     /* var traces: Plotly.Data[] = []; 
+      const uniqueDesc : { [key: string]: string }= {};
+      const interpolatedColors : { [key: string]: string } = {
+        'silty gravelly sand': 'rgb(255, 140, 0)',
+        'silty sandy gravel': 'rgb(34, 139, 34)',
+        'calcarenite': 'gray',
+        'sandstone': 'rgb(178, 34, 34)',
+        'mudstone': 'rgb(106, 90, 205)'
+    };
+    gridPoints.forEach((point: any, index: any) => {
+      const category = interpolatedData[index];
+      var color = interpolatedColors[category];
+      if (!interpolatedColors[category]) {
+        interpolatedColors[category] = this.getRandomColor(); // Add random color for new DESC
+      }
+      uniqueDesc[category] = interpolatedColors[category];
+      color = interpolatedColors[category];
+      traces.push({
+          x: [point[0]],
+          y: [point[1]],
+          z: [point[2]],
+          mode: 'markers',
+          marker: {
+              color: color,
+              size: 5,
+          },
+          name: category,
+          type: 'scatter3d',
+          showlegend: false,
+      });
+      
+  })
+  Object.keys(uniqueDesc).forEach(desc => {
+    traces.push({
+      x: [null], // No actual points, just for the legend
+      y: [null],
+      z: [null],
+      mode: 'lines',
+      line: {
+        color: interpolatedColors[desc],
+        width: 25,
+      },
+      name: desc,
+      type: 'scatter3d',
+      showlegend: true,
+    });
+  });*/
+  Plotly.newPlot('3d', fig, {
+    xaxis: { title: 'X-axis' },
+    yaxis: { title: 'Y-axis' },
+    scene: {
+      aspectratio: { x: 2, y: 1, z: 1 }
+    },
+    margin: {
+      l: 0, r: 10, b: 10, t: 20
+    },
+    width: 930,
+    height: 500,
+    showlegend: true,
+  }, { responsive: true });
+  this.timer= true
+    })
+    //console.log(response.grid_points)
+      // Plot interpolated data
+     
+
+  
+}, error => {
+  console.log('There is an error', error);
+
+}) }
+else {
+  this.plot3d()
+}
+
+}
+
+
 }

@@ -49,11 +49,12 @@ deleteUser(name: string): void {
   ); }
 }
 
-openModifyDialog(name: string, role: string): void {
+openModifyDialog(name: string, role: string, status: string): void {
   const dialogRef = this.dialog.open(ModifyuserComponent, {
     width: '600px',
     data: {userName: name,
       role: role, 
+      status: status
     }
   });
   dialogRef.componentInstance.userModified.subscribe(() => {
