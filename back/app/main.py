@@ -13,15 +13,14 @@ from . import models, schemas
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
-from .schemas import ProjectCreate, ProjectUpdate, UserCreate, UserUpdate, UserUpdate2
-from .models import BH, User, Project, bhparams, geol
+from .schemas import UserCreate, UserUpdate, UserUpdate2
+from .models import Borehole, User, Bh_params, Geol
 from fastapi.middleware.cors import CORSMiddleware
 from shapely import wkb
-from shapely.geometry import Point, Polygon
+from shapely.geometry import Point
 from pyproj import Proj, transform
 from geoalchemy2.shape import from_shape
 from scipy.interpolate import griddata, LinearNDInterpolator
-from scipy.spatial import ConvexHull, Delaunay
 import plotly.graph_objects as go
 
 SECRET_KEY = "nmdcsecretkey"
@@ -33,8 +32,6 @@ app = FastAPI()
 
 origins = [
     "http://localhost:4200",
-      "http://localhost:4200/home",  # Frontend URL
-    # Add other origins if needed
 ]
 
 app.add_middleware(
@@ -62,13 +59,12 @@ def signup(user: UserCreate, db: Session = Depends(get_db)):
         return {'message': 'User already exists'}, 200    
     else:
         hashed_password = pwd_context.hash(password)
-        new_user = User(username=username, password=hashed_password, role='nonadmin', status='unverified') 
+        new_user = User(username=username, password=hashed_password, role='admin', status='verified') 
         db.add(new_user)
         db.commit()
         db.refresh(new_user)
         return {'message': 'Account created.'}, 200
     
-
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
     if expires_delta:
@@ -87,33 +83,20 @@ def login(user: UserCreate, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username==username).first()
     if user and pwd_context.verify(password, user.password) and user.status == 'verified':
         access_token = create_access_token(data={"user": user.username})
-        return {"access_token": access_token, "role": user.role}
+        return {"access_token": access_token, "role": user.role, "username": user.username}
     return {'message': 'Incorrect username or password or unverified status.'}, 404
 
-    
-@app.get("/projects")
-def getProjects(Authorization: Annotated[str | None, Header()] = None, db: Session = Depends(get_db)):
-    #print(Authorization)
-    try:
-        payload = jwt.decode(Authorization, SECRET_KEY, algorithms=[ALGORITHM])
-        #print(payload["user"])
-        prjs= db.query(Project).all()
-        data=[]
-        for bh in prjs:
-            geometry = wkb.loads(bytes(bh.geom.data))
-            data.append({'name': bh.name, 'date': bh.date, 'x': geometry.x, 'y': geometry.y})
-        return {'data': data, 'user': payload["user"]}
-    except JWTError:
-        return {'error': 'invalid token'}, 401
-         
 
-@app.post("/projects")
-async def createProject(Files: List[UploadFile] = File(...), db: Session = Depends(get_db)):
+@app.post("/bh")
+async def addBHs(Files: List[UploadFile] = File(...), db: Session = Depends(get_db)):
     for bh_file in Files:
         if bh_file:
-            try:
+            try:    
+                    bhs= []
+                    bhsdict= {}
                     boreholes= None
                     filename = bh_file.filename.lower()
+                    print(filename)
                     proj_in = Proj(init='epsg:32640') #utm zone 40 northing/easting
                     proj_out = Proj(init='epsg:4326') #wgs84 long/lat
                     if filename.endswith('.xls') or filename.endswith('.xlsx') or filename.endswith('.xlsm'):
@@ -148,19 +131,11 @@ async def createProject(Files: List[UploadFile] = File(...), db: Session = Depen
                         if ('GEOL' in sheet_names):
                            GEOLs = pd.read_excel(io.BytesIO(ff), sheet_name='GEOL')
                            GEOLs = GEOLs.dropna(subset=['PointID', 'Depth', 'GEOL_BASE', 'GEOL_LEG', 'GEOL_DESC'])
-
+                        
 
                         if BHs is not None and not BHs.empty:
-                            project_name= filename[: filename.index('.xls')]
                             boreholes = BHs.iloc[:, 0].tolist()
-                            print(boreholes)
-                            first_row = BHs.iloc[0]
-                            project_East = float(first_row['East'])
-                            project_North = float(first_row['North'])
-                            new_project= Project(name= project_name, project_id= project_name, East= project_East, North= project_North, geom= from_shape(Point(transform(proj_in, proj_out, project_East, project_North))))
-                            db.add(new_project)
-                            db.commit()
-                            db.refresh(new_project)
+                            project_name= filename[: filename.index('.xls')]
                             for _, row in BHs.iterrows():
                                 pointID= row['PointID']
                                 if ('Report' in BHs.columns):
@@ -173,16 +148,20 @@ async def createProject(Files: List[UploadFile] = File(...), db: Session = Depen
                                 X3857, Y3857 = transform(proj_in, proj_out, East, North)  
                                 point = Point(X3857, Y3857)
                                 geom = from_shape(point)
-                                new_entry = BH(
+                                new_entry = Borehole(
                                 pointID=pointID,
-                                project_name= project_name,
+                                project= project_name,
                                 report_id= report_id,
                                 Elevation= Elevation,
                                 East=East,
                                 North=North,
                                 geom=geom)
                                 db.add(new_entry)
+                                bhs.append(new_entry)
                             db.commit()
+                            for bh in bhs: 
+                                bhsdict[bh.pointID]= bh.id
+                            print(bhsdict)
                     elif filename.endswith('.ags'):
                         frames_data = {}
                         ags_content0 = await bh_file.read()
@@ -261,9 +240,7 @@ async def createProject(Files: List[UploadFile] = File(...), db: Session = Depen
                         BHs = frames_data.get('HOLE')   
                         if BHs is not None and project is not None and not BHs.empty:
                             first_row0 = project.iloc[0]
-                            project_id= first_row0['PROJ_ID']
                             project_name= first_row0['PROJ_NAME']
-                            #print(project_name)
                             date= first_row0['PROJ_DATE']
                             if (date.strip()):
                                 project_date= datetime.strptime(date, "%d/%m/%Y").date()
@@ -276,13 +253,7 @@ async def createProject(Files: List[UploadFile] = File(...), db: Session = Depen
                             BHs = BHs[['PointID', 'East', 'North', 'Elevation']]
                             BHs = BHs.dropna(subset=['PointID','East', 'North'])
                             boreholes = BHs.iloc[:, 0].tolist()
-                            first_row = BHs.iloc[0]
-                            project_East = float(first_row['East'])
-                            project_North = float(first_row['North'])
-                            new_project= Project(name= project_name, project_id= project_id, date=project_date, East= project_East, North= project_North, geom= from_shape(Point(transform(proj_in, proj_out, project_East, project_North))))
-                            db.add(new_project)
-                            db.commit()
-                            db.refresh(new_project)
+
                             for _, row in BHs.iterrows():
                                 pointID= row['PointID']
                                 Elevation = row['Elevation']
@@ -291,18 +262,21 @@ async def createProject(Files: List[UploadFile] = File(...), db: Session = Depen
                                 X3857, Y3857 = transform(proj_in, proj_out, East, North)  
                                 point = Point(X3857, Y3857)
                                 geom = from_shape(point)
-                                new_entry = BH(
+                                new_entry = Borehole(
                                 pointID=pointID,
-                                project_name= project_name,
+                                date= project_date,
+                                project= project_name,
                                 Elevation= Elevation,
                                 East=East,
                                 North=North,
-                                geom=geom,
-                            )
+                                geom=geom)
+
                                 db.add(new_entry)
-
+                                bhs.append(new_entry)
                             db.commit()
-
+                            for bh in bhs: 
+                                bhsdict[bh.pointID]= bh.id
+                            print(bhsdict)
                         GEOLs = frames_data.get('GEOL')
                         if  GEOLs is not None and not GEOLs.empty:
                             GEOLs= GEOLs[['HOLE_ID', 'GEOL_TOP', 'GEOL_BASE', 'GEOL_LEG']]
@@ -329,8 +303,7 @@ async def createProject(Files: List[UploadFile] = File(...), db: Session = Depen
                             ISTPs= ISTPs.dropna(subset=['ISPT_REP'])
                         UCSs = None
                     
-
-                    
+   
                     if boreholes is not None and GEOLs is not None and not GEOLs.empty:
                         for _, row in GEOLs.iterrows():
                             pointID= row['PointID']
@@ -352,7 +325,8 @@ async def createProject(Files: List[UploadFile] = File(...), db: Session = Depen
                                    geol_desc = row['GEOL_DESC']
                                depthFrom= row['Depth']
                                depthTo = row['GEOL_BASE']
-                               new_entry= geol(pointID= pointID, project_name=project_name, depth_from=depthFrom, depth_to= depthTo, geol_value=geol_desc)
+                               print(bhsdict[pointID])
+                               new_entry= Geol(pointID= pointID, bh_id= bhsdict[pointID], project=project_name, depth_from=depthFrom, depth_to= depthTo, geol_value=geol_desc)
                                db.add(new_entry)
                         db.commit()
                     if boreholes is not None and ISTPs is not None and not ISTPs.empty:
@@ -369,7 +343,7 @@ async def createProject(Files: List[UploadFile] = File(...), db: Session = Depen
                                 else:  
                                     istp_value = str(row['ISPT_REP'])
                                 if(istp_value.isdigit()):
-                                    new_entry= bhparams(name= 'ISPT', pointID= pointID, project_name=project_name, depth=depth, value=istp_value)
+                                    new_entry= Bh_params(name= 'ISPT', bh_id= bhsdict[pointID], pointID= pointID, project=project_name, depth=depth, value=istp_value)
                                     db.add(new_entry)
                         db.commit()
                     if boreholes is not None and COREs is not None and not COREs.empty:
@@ -384,26 +358,26 @@ async def createProject(Files: List[UploadFile] = File(...), db: Session = Depen
                                 core_rqd= row['CORE_RQD']
                                 if(filename.endswith('.ags')):
                                     if (core_prec.isdigit()):
-                                        new_entry1= bhparams(name= 'CORE_PREC', pointID= pointID, project_name=project_name, depth=depth, value=core_prec)
+                                        new_entry1= Bh_params(name= 'CORE_PREC', bh_id= bhsdict[pointID], pointID= pointID, project=project_name, depth=depth, value=core_prec)
                                         db.add(new_entry1)
                                     if (core_srec.isdigit()):
-                                        new_entry2= bhparams(name= 'CORE_SREC', pointID= pointID, project_name=project_name, depth=depth, value=core_srec)
+                                        new_entry2= Bh_params(name= 'CORE_SREC', bh_id= bhsdict[pointID], pointID= pointID, project=project_name, depth=depth, value=core_srec)
                                         db.add(new_entry2)
                                     if (core_rqd.isdigit()):
-                                        new_entry3= bhparams(name= 'CORE_RQD', pointID= pointID, project_name=project_name, depth=depth, value=core_rqd)
+                                        new_entry3= Bh_params(name= 'CORE_RQD', bh_id= bhsdict[pointID], pointID= pointID, project=project_name, depth=depth, value=core_rqd)
                                         db.add(new_entry3)
                                 #print(core_prec.isdigit())
                                 #print(type(core_prec))
                                 #print(isinstance(core_srec, (float)) or isinstance(core_srec, (int)))
                                 else: 
                                     if (isinstance(core_prec, (float)) or isinstance(core_prec, (int))):
-                                        new_entry1= bhparams(name= 'CORE_PREC', pointID= pointID, project_name=project_name, depth=depth, value=core_prec)
+                                        new_entry1= Bh_params(name= 'CORE_PREC', bh_id= bhsdict[pointID], pointID= pointID, project=project_name, depth=depth, value=core_prec)
                                         db.add(new_entry1)
                                     if (isinstance(core_srec, (float)) or isinstance(core_srec, (int))):
-                                        new_entry2= bhparams(name= 'CORE_SREC', pointID= pointID, project_name=project_name, depth=depth, value=core_srec)
+                                        new_entry2= Bh_params(name= 'CORE_SREC', bh_id= bhsdict[pointID], pointID= pointID, project=project_name, depth=depth, value=core_srec)
                                         db.add(new_entry2)
                                     if (isinstance(core_rqd, (float)) or isinstance(core_rqd, (int))):
-                                        new_entry3= bhparams(name= 'CORE_RQD', pointID= pointID, project_name=project_name, depth=depth, value=core_rqd)
+                                        new_entry3= Bh_params(name= 'CORE_RQD', bh_id= bhsdict[pointID], pointID= pointID, project=project_name, depth=depth, value=core_rqd)
                                         db.add(new_entry3)
                         db.commit()
                     if boreholes is not None and UCSs is not None and not UCSs.empty:  
@@ -413,7 +387,7 @@ async def createProject(Files: List[UploadFile] = File(...), db: Session = Depen
                             depth= row['Depth']
                             strength = row['Strength']
                             samp_ref= row['SAMP_REF']
-                            new_entry= bhparams(samp_ref= samp_ref, name= 'UCS', pointID= pointID, project_name=project_name, depth=depth, value=strength)
+                            new_entry= Bh_params(samp_ref= samp_ref, name= 'UCS', bh_id= bhsdict[pointID], pointID= pointID, project_name=project_name, depth=depth, value=strength)
                             db.add(new_entry)
                        db.commit()
 
@@ -421,37 +395,11 @@ async def createProject(Files: List[UploadFile] = File(...), db: Session = Depen
                 traceback.print_exc()
                 print ('An error is detected:', e)
 
-    return {'message': 'Project created.'}, 200
+    return {'message': 'BH created.'}, 200
             
 
 
-@app.put("/projects/{project_name}/modify")
-def modify_project(project_name: str, project_update: ProjectUpdate, db: Session = Depends(get_db)):
-    db_project = db.query(Project).filter(Project.name == project_name).first()
-    if db_project is None:
-        raise HTTPException(status_code=404, detail="Project not found")
-    updated_data = project_update.dict(exclude_unset=True)
-    print(updated_data)
-    for field, value in updated_data.items():
-        setattr(db_project, field, value)
-    db.commit()
-    db.refresh(db_project)
-    return {'message': 'Project modified.'}, 200
 
-
-@app.delete("/projects/{project_name}", status_code=204)
-def delete_project(project_name: str, db: Session = Depends(get_db)):
-    project = db.query(Project).filter(Project.name == project_name).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    
-    
-    db.query(geol).filter(geol.project_name == project_name).delete()
-    db.query(bhparams).filter(bhparams.project_name == project_name).delete()
-    db.query(BH).filter(BH.project_name == project_name).delete()
-    db.delete(project)
-    db.commit()
-    return {"message": f"Project {project_name} and related data deleted successfully"}
 
 
 @app.get("/users")
@@ -513,37 +461,40 @@ def delete_user(username: str, db: Session = Depends(get_db)):
     return {"message": "User deleted successfully"}
 
 
-@app.get("/data/{project_name}")
-def getBHs(project_name: str, db: Session = Depends(get_db)):
-    BHs= db.query(BH).filter(BH.project_name==project_name).all()
+@app.get("/bh")
+def getBHs(db: Session = Depends(get_db)):
+    BHs= db.query(Borehole).all()
     print(BHs)
     data= []
     for bh in BHs:
         geometry = wkb.loads(bytes(bh.geom.data))
-        data.append({'name': bh.pointID, 'x': geometry.x, 'y': geometry.y})
+        data.append({'id': bh.id, 'name': bh.pointID, 'x': geometry.x, 'y': geometry.y})
     return {'data': data}
 
 
-@app.get("/params")
-def getData(project: str = Query(...), bhh: str = Query(...), parameter: str = Query(...), db: Session = Depends(get_db)): 
-    print(project, bhh, parameter)
+@app.get("/bhparams")
+def getData(id: int = Query(...), parameter: str = Query(...), db: Session = Depends(get_db)): 
+    print(id, parameter)
     data= []
-    bh= db.query(BH).filter(BH.pointID== bhh, BH.project_name == project).first()
+    bh= db.query(Borehole).filter(Borehole.id == id).first()
     print('hoooooo', bh.pointID)
-    values = db.query(bhparams).filter(bhparams.project_name == project, bhparams.pointID == bhh, bhparams.name == parameter).all()
+    values = db.query(Bh_params).filter(Bh_params.bh_id == id, Bh_params.name == parameter).all()
+
     for v in values:
+        print(v)
         data.append({
                     'elev': bh.Elevation - float(v.depth),
                     'value': v.value})
+    print(data)
     return {'data': data}
      
-@app.get("/geol/{project_name}")
-def getGeol(project_name: str, db: Session = Depends(get_db)):
-    geols = db.query(geol).filter(geol.project_name == project_name).all()
+@app.get("/bhgeol")
+def getGeol(id: int, db: Session = Depends(get_db)):
+    geols = db.query(Geol).filter(Geol.bh_id == id).all()
     data = []
     
     for v in geols: 
-        bh = db.query(BH).filter(BH.pointID == v.pointID, BH.project_name == project_name).first()
+        bh = db.query(Borehole).filter(Borehole.id == id).first()
         if not bh or pd.isna(bh.Elevation):
             continue
         geometry = wkb.loads(bytes(bh.geom.data))
@@ -551,6 +502,7 @@ def getGeol(project_name: str, db: Session = Depends(get_db)):
             continue
         val = v.geol_value.lower()
         data.append({
+            'id': bh.id,
             'name': bh.pointID,
             'x': geometry.x,
             'y': geometry.y,
@@ -561,144 +513,6 @@ def getGeol(project_name: str, db: Session = Depends(get_db)):
         })
     return {'data': data}
 
-@app.get("/interpo/{project_name}")
-def getInterpo(project_name: str, db: Session = Depends(get_db)):
-    geols = db.query(geol).filter(geol.project_name == project_name).all()
-    unique_geol_desc = set()
-    all_points = []
-    all_values = []
-    fig = go.Figure()
-    num= db.query(BH).filter(BH.project_name == project_name).count()
-    print(num)
-    if (num < 2):
-        raise ValueError("At least 2 boreholes are required to compute the interpolation")
-  
-    for v in geols: 
-        bh = db.query(BH).filter(BH.pointID == v.pointID, BH.project_name == project_name).first()
-        if not bh or pd.isna(bh.Elevation):
-            continue
-        geometry = wkb.loads(bytes(bh.geom.data))
-        val = v.geol_value.lower()
-        unique_geol_desc.add(val)
-        if pd.isna(geometry.y) or pd.isna(geometry.x):
-            continue
 
-        z_start = bh.Elevation - v.depth_from
-        z_end = bh.Elevation - v.depth_to
-        z_values = np.linspace(z_start, z_end, 20)
-        points = np.array([[geometry.x, geometry.y, z] for z in z_values])
-        all_points.extend(points)
-        all_values.extend([val] * len(points))
-
-    all_points = np.array(all_points)
-    all_values = np.array(all_values)
-
-    # Convert geological descriptions to numerical values
-    geol_desc_to_num = {desc: i for i, desc in enumerate(unique_geol_desc)}
-    num_to_geol_desc = {i: desc for desc, i in geol_desc_to_num.items()}
-    print(num_to_geol_desc)
-    all_values_numeric = np.array([geol_desc_to_num[val] for val in all_values])
-
-    # Compute convex hull
-    #hull = ConvexHull(all_points)
-
-    # Extract the vertices of the convex hull
-    #hull_points = all_points[hull.vertices]
-
-    # Create a Delaunay triangulation within the convex hull to generate grid points
-    #tri = Delaunay(hull_points)
-
-    # Find min and max coordinates
-    #x_min, x_max = np.min(hull_points[:, 0]), np.max(hull_points[:, 0])
-    #y_min, y_max = np.min(hull_points[:, 1]), np.max(hull_points[:, 1])
-    #z_min, z_max = np.min(hull_points[:, 2]), np.max(hull_points[:, 2])
-
-
-
-    x_min, x_max = np.min(all_points[:, 0]), np.max(all_points[:, 0])
-    y_min, y_max = np.min(all_points[:, 1]), np.max(all_points[:, 1])
-    z_min, z_max = np.min(all_points[:, 2]), np.max(all_points[:, 2])
-    # Generate points within the convex hull
-    grid_points = np.array([[x, y, z] for x in np.linspace(x_min, x_max, 60)
-                            for y in np.linspace(y_min, y_max, 60)
-                            for z in np.linspace(z_min, z_max, 30)
-                            #if tri.find_simplex([x, y, z]) >= 0
-                            ])
-    # Interpolate values across the grid
-    interpolator = LinearNDInterpolator(all_points, all_values_numeric)
-    interpolated_values = interpolator(grid_points)
-
-    # Remove NaN values from interpolated values and their corresponding grid points
-    valid_indices = ~np.isnan(interpolated_values)
-    interpolated_values = interpolated_values[valid_indices]
-    grid_points = grid_points[valid_indices]
-
-    # Map numerical interpolated values back to categories
-    interpolated_values = [num_to_geol_desc[int(round(val))] for val in interpolated_values]
-    unique_values = list(set(interpolated_values))
-    interpolated_colors={}
-    for cat in unique_values:
-        interpolated_colors[cat] = get_random_color()
-
-    data= go.Scatter3d(
-        x=grid_points[:, 0],
-        y=grid_points[:, 1],
-        z=grid_points[:, 2],
-        mode='markers',
-        marker=dict(
-            symbol= 'square',
-            color=[interpolated_colors[category] for category in interpolated_values],
-            size=10,
-        ),
-        name='Interpolated Values',
-        showlegend=False
-    )  
-    fig.add_trace(data)
-
-    for category, color in interpolated_colors.items():
-        legend_entry = go.Scatter3d(
-            x=[None],
-            y=[None],
-            z=[None],
-            mode='markers',
-            marker=dict(
-                size=10,
-                symbol= 'square',
-                color=color,
-                opacity=1
-            ),
-            name=category,
-            showlegend= True
-        )
-        fig.add_trace(legend_entry)
-
-    fig.update_layout(
-    scene=dict(
-        xaxis=dict(title='X', showticklabels=False),
-        yaxis=dict(title='Y', showticklabels=False),
-        zaxis=dict(title='Z'),
-        aspectratio=dict(x=2, y=1, z=1)
-    ),
-    margin=dict(
-        l=0,
-        r=0,
-        b=0,
-        t=0
-    ),
-    width=930,
-    height=500,
-    showlegend=True,
-    #title='3D Geological Interpolation'
-)
-
-
-
-    return {'fig': json.loads(fig.to_json())}
-
-def get_random_color():
-    r = random.randint(210, 255)  # Red: 210-255
-    g = random.randint(180, 230)  # Green: 180-230
-    b = random.randint(150, 200)  # Blue: 150-200
-    return f'rgb({r},{g},{b})'
 
 

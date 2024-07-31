@@ -1,0 +1,80 @@
+ <!-- ======= Header ======= -->
+ <header id="header"   style="background-color: #37517E">
+    <div class="container d-flex align-items-center">
+
+  
+       <a href="index.html" class="logo me-auto"><img src="" alt="" class="img-fluid"></a>
+
+      <nav id="navbar" class="navbar">
+        <ul>
+          <li><a class="nav-link scrollto active" href="#hero">Home</a></li>
+          <li class="dropdown"><a href="#"><span>Settings</span> <i class="bi bi-chevron-down"></i></a>
+            <ul>
+              <li><a [routerLink]="['/account', username]">My account</a></li>
+              
+              <li><a [routerLink]="['/users']">Manage Accounts</a></li>
+            </ul>
+          </li>
+          <li><a class="getstarted scrollto" (click)="logout()">Log Out</a></li>
+        </ul>
+        <i class="bi bi-list mobile-nav-toggle"></i>
+      </nav><!-- .navbar -->
+
+    </div>
+  </header><!-- End Header -->
+
+
+<section>
+    <div id="content-wrapper">
+    <div class="row container-fluid  justify-content-center"> 
+        <div class="col-xl-9 col-lg-9 col-md-9 mt-4 mb-4 embed-responsive embed-responsive-16by9" >
+            <div class="embed-responsive-item responsive-plot" id="map" #map style="height: 500px;"></div>
+        </div> 
+        <div class="col-xl-1 col-lg-1 col-md-1 mt-4 mb-4" >
+            <button (click)="addBHs()" class="btn btn-info" ><i class="bi bi-database-add"></i></button>
+        </div>
+    </div>
+    <div class="row container-fluid  justify-content-center equal-height full-height"> 
+      @if (!this.allEven) { <div class="col-xl-7 col-lg-7 col-md-9 mb-4">
+            <div class="card">    
+              <div class="card-body embed-responsive embed-responsive-16by9">
+                <div class="embed-responsive-item responsive-plot" id="3d" #3d></div>
+              </div>
+            </div>
+          </div>
+        <div class="col-xl-5 col-lg-5 col-md-5">
+            <div class="card">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    
+                    <div class="dropdown">
+                        <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                           <b><i class="bi bi-hand-index-thumb" style="margin-right: 8px;"></i> Select a Parameter</b> 
+                        </button>
+                        <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
+
+                        <div class="dropdown-divider"></div>
+                        @for(option of parameters; track option)
+                                {<a class="dropdown-item">
+                                    <label class="form-check-label">
+                                        <input type="radio"
+                                               class="form-check-input"
+                                               [value]="option"
+                                               [(ngModel)]="selectedParameter" 
+                                               [ngModelOptions]="{standalone: true}" 
+                                               (change)="plotGraphs2()"
+                                               name="typeGroup"/>
+                                        {{ option }}
+                                    </label>
+                                </a>}
+                        </div>
+                        </div>
+                </div>
+              <div class="card-body">
+                <div id="plot"  #plot></div>
+              </div>
+            </div>
+          </div> }
+    </div>
+
+  </div>
+</section>

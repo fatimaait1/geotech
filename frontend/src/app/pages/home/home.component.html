@@ -1,0 +1,117 @@
+  <!-- ======= Header ======= -->
+  <header id="header" class="fixed-top ">
+    <div class="container d-flex align-items-center">
+
+  
+       <a href="index.html" class="logo me-auto"><img src="assets/img/logo.png" alt="" class="img-fluid"></a>
+
+      <nav id="navbar" class="navbar">
+        <ul>
+          <li><a class="nav-link scrollto active" href="#hero">Home</a></li>
+          <li class="dropdown"><a [routerLink]="['/account', username]"><span>Settings</span> <i class="bi bi-chevron-down"></i></a>
+            <ul>
+              <li><a [routerLink]="['/account', username]">My account</a></li>
+              
+              <li><a [routerLink]="['/users']">Manage Accounts</a></li>
+            </ul>
+          </li>
+          <li><a class="getstarted scrollto" (click)="logout()">Log Out</a></li>
+        </ul>
+        <i class="bi bi-list mobile-nav-toggle"></i>
+      </nav><!-- .navbar -->
+
+    </div>
+  </header><!-- End Header -->
+
+  <section id="hero" class="d-flex align-items-center">
+
+    <div class="container">
+      <div class="row">
+        <div class="col-lg-6 d-flex flex-column justify-content-center pt-4 pt-lg-0 order-2 order-lg-1" data-aos="fade-up" data-aos-delay="200">
+          <h1>Welcome to The Geotechnical Data Platform</h1>
+          <h2>Explore comprehensive dashboards designed to help you visualize and manage geotechnical data effectively. Choose between the Borehole and CPT applications to get started.</h2>
+          <div class="d-flex justify-content-center justify-content-lg-start card-container">
+            <a [routerLink]="['/bh']" class="card">
+                <div class="image-container">
+                    <img src="../../../assets/img/bh.jpg" alt="Image 1">
+                    <div class="overlay">
+                        <i class="bi bi-box-arrow-up-right"></i>
+                    </div>
+                </div>
+                <div class="card-title">Boreholes</div>
+            </a>
+            <a [routerLink]="['/cpt']" class="card">
+                <div class="image-container">
+                    <img src="../../../assets/img/cpt.jpg" alt="Image 2">
+                    <div class="overlay">
+                        <i class="bi bi-box-arrow-up-right"></i>
+                    </div>
+                </div>
+                <div class="card-title">CPT</div>
+            </a>
+          </div>
+        </div>
+        <div class="col-lg-6 order-1 order-lg-2 hero-img" data-aos="zoom-in" data-aos-delay="200">
+          <img src="../../../assets/img/home.png" class="img-fluid animated" alt="">
+        </div>
+      </div>
+    </div>
+
+  </section><!-- End Hero -->
+
+
+   <!-- ======= Services Section ======= -->
+   <section id="services" class="services section-bg">
+    <div class="container" data-aos="fade-up">
+
+      <div class="section-title">
+        <h2>About the platform</h2>
+        <p>The Geotechnical Data Platform centralizes all geotechnical data, offering powerful tools for visualization, statistical analysis, and gaining insights.</p>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-xl-3 col-md-6 d-flex align-items-stretch" data-aos="zoom-in" data-aos-delay="100">
+          <div class="icon-box">
+            <div class="icon"><i class="bx bx-layer"></i></div>
+            <h4>Centralized Data Management</h4>
+            <p>Access all geotechnical data stored in one place.</p>
+          </div>
+        </div>
+
+        
+
+        <div class="col-xl-3 col-md-6 d-flex align-items-stretch mt-4 mt-xl-0" data-aos="zoom-in" data-aos-delay="300">
+            <div class="icon-box">
+                <div class="icon"><i class="bx bx-chart"></i></div>
+                <h4>Advanced Visualization</h4>
+                <p>Detailed maps, graphs, and charts to uncover insights and patterns.</p>
+              </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 d-flex align-items-stretch mt-4 mt-xl-0" data-aos="zoom-in" data-aos-delay="400">
+            <div class="icon-box">
+                <div class="icon"><i class="bx bx-tachometer"></i></div>
+                <h4>Interactivity and Performance</h4>
+                <p>Responsive and interactive features for seamless data exploration and analysis.</p>
+              </div>
+        </div>
+
+      </div>
+
+    </div>
+  </section><!-- End Services Section -->
+
+
+    <section id="contact" class="contact section-bg">
+        <div class="container" data-aos="fade-up">
+    
+          <div class="section-title">
+            <h2>Contact</h2>
+            <p>If you have any questions or issues with using the platform, please contact ... .</p>
+          </div>
+    
+          
+    
+        </div>
+      </section><!-- End Services Section -->
+
