@@ -1,5 +1,0 @@
-.resp {
-    overflow-x: auto;
-    max-height: 400px; /* Set a fixed height for the table container */
-    overflow-y: auto; /* Enable vertical scrolling */
-}
