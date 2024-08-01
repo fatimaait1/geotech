@@ -1,1 +1,137 @@
-<p>cpt works!</p>
+ <!-- ======= Header ======= -->
+ <header id="header"   style="background-color: #37517E">
+    <div class="container d-flex align-items-center">
+
+  
+       <a href="index.html" class="logo me-auto"><img src="" alt="" class="img-fluid"></a>
+
+      <nav id="navbar" class="navbar">
+        <ul>
+          <li><a class="nav-link scrollto active" href="#hero">Home</a></li>
+          <li class="dropdown"><a href="#"><span>Settings</span> <i class="bi bi-chevron-down"></i></a>
+            <ul>
+              <li><a [routerLink]="['/account', username]">My account</a></li>
+              
+              <li><a [routerLink]="['/users']">Manage Accounts</a></li>
+            </ul>
+          </li>
+          <li><a class="getstarted scrollto" (click)="logout()">Log Out</a></li>
+        </ul>
+        <i class="bi bi-list mobile-nav-toggle"></i>
+      </nav><!-- .navbar -->
+
+    </div>
+  </header><!-- End Header -->
+
+  <section>
+    <div id="content-wrapper">
+    <div class="row container-fluid  justify-content-center"> 
+        <div class="col-xl-8 col-lg-8 col-md-8 mt-4 mb-4  mr-4 ml-4 embed-responsive embed-responsive-16by9" >
+            <div class="embed-responsive-item responsive-plot" id="map" #map style="height: 600px;"></div>
+        </div> 
+        <div class="col-xl-3 col-lg-3 col-md-3  mt-4 mb-4 scrollable embed-responsive">
+            <div class="card border-left-info shadow h-100 py-2">
+              <div class="card-body" id="tbl">
+                <div class="text-m font-weight-bold text-info text-uppercase mb-1">
+                  Projects
+                </div>
+                <br>
+
+                <div class="row mb-3">
+                  <div class="col-md-4">
+                    <label for="boxNameFilter" class="mb-0"><b>Project Name:</b></label>
+                  </div>
+                  <div class="col-md-8">
+                    <form class="d-flex">
+                      <input class="form-control me-1" [(ngModel)]="searchText" (keyup)="searchProjects()" [ngModelOptions]="{standalone: true}" type="search" placeholder="Search" aria-label="Search">
+                      <button class="btn btn-outline-info"  ><b>Search</b></button>
+                    </form>
+                  </div>
+                </div>
+                
+               
+                <br>
+                
+                <!-- Table -->
+                 <div class="resp">
+                <table class="table table-bordered">
+                  <thead>
+                    <tr>
+                      <th>Project Name</th>
+                    
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (row of filteredProjects; track row) 
+                   {<tr>
+                      <td>{{ row.name }}</td>
+                     
+                     
+                      <td>
+                        <div class=" d-flex justify-content-around">
+                          <button type="button" class="btn btn-info mx-1" (click)="zoomTo(row.id, row.loclon, row.loclat)">
+                            <i class="bi bi-bar-chart-line"></i>
+                          </button>
+                          
+                        </div>
+                      </td>
+                    </tr> }
+                  </tbody>
+                </table>
+              </div>
+              </div>
+            </div>
+        </div>
+    </div>
+    @if(isloading)
+
+   { <div class="d-flex justify-content-center">
+    <div class="spinner-grow text-info" role="status">
+        <span class="sr-only">Loading...</span>
+      </div>
+    </div>}
+    @if(isclicked)
+   {<div class="row container-fluid  justify-content-center equal-height full-height"> 
+    
+     <div class="col-xl-3 col-lg-3 col-md-3 mt-4 mb-4">
+        <div class="card">
+            <div class="card-body">
+                <div id="qc" #qc></div>
+            </div>
+        </div>  
+     </div>
+     <div class="col-xl-3 col-lg-3 col-md-3 mt-4 mb-4">
+        <div class="card">
+            <div class="card-body">
+                <div id="fs" #fs></div>
+            </div>
+        </div>  
+     </div>
+     <div class="col-xl-1 col-lg-1 col-md-1 mt-4 mb-4" >
+        <div class="dropdown">
+            <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+               <b><i class="bi bi-funnel-fill" style="margin-right: 8px;"></i>Type</b> 
+            </button>
+            <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
+
+            <div class="dropdown-divider"></div>
+            @for(option of types; track option)
+                    {<a class="dropdown-item">
+                        <label class="form-check-label">
+                            <input type="radio"
+                                   class="form-check-input"
+                                   [value]="option"
+                                   [(ngModel)]="selectedType" 
+                                   [ngModelOptions]="{standalone: true}" 
+                                   (change)="plot(selectedBox, selectedType)"
+                                   name="typeGroup"/>
+                            {{ option }}
+                        </label>
+                    </a>}
+            </div>
+            </div>
+    </div>
+    </div>
+}
+  </div>
+</section>

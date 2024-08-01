@@ -7,6 +7,7 @@ from fastapi import FastAPI, Depends, File, HTTPException, Header, Request, Uplo
 import numpy as np
 import pandas as pd
 import json
+from sqlalchemy import and_, exists, or_
 from sqlalchemy.orm import Session
 from .database import SessionLocal, engine
 from . import models, schemas
@@ -14,7 +15,7 @@ from passlib.context import CryptContext
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
 from .schemas import UserCreate, UserUpdate, UserUpdate2
-from .models import Borehole, User, Bh_params, Geol
+from .models import Borehole, Meas, User, Bh_params, Geol, Project, Box, Cpt
 from fastapi.middleware.cors import CORSMiddleware
 from shapely import wkb
 from shapely.geometry import Point
@@ -22,7 +23,10 @@ from pyproj import Proj, transform
 from geoalchemy2.shape import from_shape
 from scipy.interpolate import griddata, LinearNDInterpolator
 import plotly.graph_objects as go
-
+from geoalchemy2 import Geometry
+from geoalchemy2.shape import to_shape
+from shapely.geometry import mapping
+from sqlalchemy.orm import aliased
 SECRET_KEY = "nmdcsecretkey"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 480 #8H
@@ -139,7 +143,7 @@ async def addBHs(Files: List[UploadFile] = File(...), db: Session = Depends(get_
                             for _, row in BHs.iterrows():
                                 pointID= row['PointID']
                                 if ('Report' in BHs.columns):
-                                    report_id= row['Report']
+                                    report_id= str(row['Report'])
                                 else:
                                     report_id= ''
                                 Elevation = row['Elevation']
@@ -325,7 +329,7 @@ async def addBHs(Files: List[UploadFile] = File(...), db: Session = Depends(get_
                                    geol_desc = row['GEOL_DESC']
                                depthFrom= row['Depth']
                                depthTo = row['GEOL_BASE']
-                               print(bhsdict[pointID])
+                               #Sprint(bhsdict[pointID])
                                new_entry= Geol(pointID= pointID, bh_id= bhsdict[pointID], project=project_name, depth_from=depthFrom, depth_to= depthTo, geol_value=geol_desc)
                                db.add(new_entry)
                         db.commit()
@@ -387,7 +391,7 @@ async def addBHs(Files: List[UploadFile] = File(...), db: Session = Depends(get_
                             depth= row['Depth']
                             strength = row['Strength']
                             samp_ref= row['SAMP_REF']
-                            new_entry= Bh_params(samp_ref= samp_ref, name= 'UCS', bh_id= bhsdict[pointID], pointID= pointID, project_name=project_name, depth=depth, value=strength)
+                            new_entry= Bh_params(samp_ref= samp_ref, name= 'UCS', bh_id= bhsdict[pointID], pointID= pointID, project=project_name, depth=depth, value=strength)
                             db.add(new_entry)
                        db.commit()
 
@@ -397,10 +401,6 @@ async def addBHs(Files: List[UploadFile] = File(...), db: Session = Depends(get_
 
     return {'message': 'BH created.'}, 200
             
-
-
-
-
 
 @app.get("/users")
 def getUsers(Authorization: Annotated[str | None, Header()] = None, db: Session = Depends(get_db)):
@@ -463,8 +463,8 @@ def delete_user(username: str, db: Session = Depends(get_db)):
 
 @app.get("/bh")
 def getBHs(db: Session = Depends(get_db)):
-    BHs= db.query(Borehole).all()
-    print(BHs)
+    BHs= db.query(Borehole).distinct().all()
+    #print(BHs)
     data= []
     for bh in BHs:
         geometry = wkb.loads(bytes(bh.geom.data))
@@ -514,5 +514,70 @@ def getGeol(id: int, db: Session = Depends(get_db)):
     return {'data': data}
 
 
+@app.get("/projects")
+def getprojects(db: Session = Depends(get_db)):
+    projects= db.query(Project).all()
+    data= []
+    for p in projects:
+        data.append({
+            'id': p.id, 'name': p.name, 'lat': p.loclat, 'lon': p.loclon
+        })
+    return {'data': data}
+
+#get only boxes with associated CPT data
+@app.get("/grid")
+def getGrid(id: int, db: Session = Depends(get_db)):
+    data= []
+    # Aliases for clarity
+    CptAlias = aliased(Cpt)
+    MeasAlias = aliased(Meas)
+
+# Subquery for EXISTS
+    exists_subquery = (
+    exists()
+    .where(
+        CptAlias.box_id == Box.box_name,
+        CptAlias.id == MeasAlias.info_id,
+        MeasAlias.info_id == CptAlias.id,
+        Box.project_id == id
+    )
+)
+
+# Query with EXISTS filter
+    boxes = db.query(Box).filter(exists_subquery).distinct().all()
+    for b in boxes:
+        geom = to_shape(b.polygon)
+        data.append({'id': b.id, 'box_name': b.box_name, 'geom': mapping(geom)})
+    return {'data': data}
 
 
+@app.get("/cptdata")
+def getcptdata(id: str, type: str, db: Session = Depends(get_db)):
+    print(type)
+    if type == 'POST':
+        cpts = db.query(Cpt).filter(Cpt.box_id == id, or_(Cpt.type == 'POST', Cpt.type == 'PO')).all()
+    elif type == 'PRE and POST':
+        cpts = db.query(Cpt).filter(Cpt.box_id == id, or_(Cpt.type == 'POST', Cpt.type == 'PO', Cpt.type == 'PRE')).all()
+    else:
+        cpts = db.query(Cpt).filter(Cpt.box_id == id, Cpt.type == type).all()
+
+    cpt_data = []
+    for cpt in cpts:
+        measurements = db.query(Meas).filter(Meas.info_id == cpt.id).all()
+        meas_data = []
+        for m in measurements:
+            meas_data.append({
+                'depth': m.depth,
+                'fs': m.fs,
+                'qc': m.qc
+            })
+
+        cpt_data.append({
+            'cpt_id': cpt.id,
+            'grid_id': cpt.grid_id,
+            'box_name': cpt.box_id,
+            'type': cpt.type,
+            'measurements': meas_data
+        })
+    #print(cpt_data)
+    return {'cpt_data': cpt_data}
