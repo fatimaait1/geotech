@@ -15,7 +15,8 @@ from passlib.context import CryptContext
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
 from .schemas import UserCreate, UserUpdate, UserUpdate2
-from .models import Borehole, Meas, User, Bh_params, Geol, Project, Box, Cpt
+from .models import Borehole, Box, Cpt, Meas, Project, User, Bh_params, Geol
+#, Project, Box, Cpt,  Meas
 from fastapi.middleware.cors import CORSMiddleware
 from shapely import wkb
 from shapely.geometry import Point
@@ -27,6 +28,7 @@ from geoalchemy2 import Geometry
 from geoalchemy2.shape import to_shape
 from shapely.geometry import mapping
 from sqlalchemy.orm import aliased
+from .geo_codes import geo 
 SECRET_KEY = "nmdcsecretkey"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 480 #8H
@@ -100,6 +102,7 @@ async def addBHs(Files: List[UploadFile] = File(...), db: Session = Depends(get_
                     bhsdict= {}
                     boreholes= None
                     filename = bh_file.filename.lower()
+                    fl= bh_file.filename
                     print(filename)
                     proj_in = Proj(init='epsg:32640') #utm zone 40 northing/easting
                     proj_out = Proj(init='epsg:4326') #wgs84 long/lat
@@ -121,6 +124,8 @@ async def addBHs(Files: List[UploadFile] = File(...), db: Session = Depends(get_
 
                         if ('ISPT' in sheet_names):
                             ISTPs = pd.read_excel(io.BytesIO(ff), sheet_name='ISPT') 
+                            if ISTPs['ISPT_REP'].isna().all() and not ISTPs['ISPT_TYPE'].isna().all():
+                               ISTPs['ISPT_REP'] = ISTPs['ISPT_TYPE']
                             ISTPs = ISTPs.dropna(subset=['PointID', 'Depth', 'ISPT_REP'])
                         
                         if ('CORE' in sheet_names):
@@ -134,7 +139,7 @@ async def addBHs(Files: List[UploadFile] = File(...), db: Session = Depends(get_
 
                         if ('GEOL' in sheet_names):
                            GEOLs = pd.read_excel(io.BytesIO(ff), sheet_name='GEOL')
-                           GEOLs = GEOLs.dropna(subset=['PointID', 'Depth', 'GEOL_BASE', 'GEOL_LEG', 'GEOL_DESC'])
+                           GEOLs = GEOLs.dropna(subset=['PointID', 'Depth', 'GEOL_BASE', 'GEOL_LEG'])
                         
 
                         if BHs is not None and not BHs.empty:
@@ -159,20 +164,21 @@ async def addBHs(Files: List[UploadFile] = File(...), db: Session = Depends(get_
                                 Elevation= Elevation,
                                 East=East,
                                 North=North,
+                                filename= fl,
                                 geom=geom)
                                 db.add(new_entry)
                                 bhs.append(new_entry)
                             db.commit()
                             for bh in bhs: 
                                 bhsdict[bh.pointID]= bh.id
-                            print(bhsdict)
+                            #print(bhsdict)
                     elif filename.endswith('.ags'):
                         frames_data = {}
                         ags_content0 = await bh_file.read()
                         ags_content= ags_content0.decode('utf-8')
                         frame_pattern = re.compile(r'"\*\*(.*?)\"', re.MULTILINE)
                         matches = re.finditer(frame_pattern, ags_content)
-                        frames_to_extract= ['PROJ', 'HOLE', 'GEOL', 'CORE', 'ISPT', 'ABBR']
+                        frames_to_extract= ['PROJ', 'HOLE', 'GEOL', 'CORE', 'ISPT']
                         matches = list(frame_pattern.finditer(ags_content))
                         for i, match in enumerate(matches):
                             frame_name = match.group(1).strip()
@@ -181,63 +187,46 @@ async def addBHs(Files: List[UploadFile] = File(...), db: Session = Depends(get_
                                end_index = matches[i + 1].start() if i + 1 < len(matches) else len(ags_content)
                                # Slice the content for the current frame
                                frame_content = ags_content[start_index:end_index]
-                              # Find columns for the current frame
-                               if frame_name == 'ABBR':
-                                   result_dict = {}
-                                   lines = frame_content.strip().split('\n')
-                                   for line in lines[1:]:
-                                    # Check if the line starts with '"GEOL_LEG"'
-                                       if line.startswith('"GEOL_LEG"'):
-                                       # Split the line by commas
-                                           parts = line.split(',')
-                                         # Get the second and third elements, stripping the surrounding quotes
-                                           key = parts[1].strip('\r"\n')
-                                           value = parts[2].strip('\r"\n')
-                                            # Store the key-value pair in the dictionary
-                                           result_dict[key] = value
-                                   #print(result_dict)
-                               if frame_name != 'ABBR':
-                                    columns_str= frame_content[: frame_content.find('"<UNITS>"')]
-                                    #print(columns_str)
-                                    all_columns= columns_str.strip('"').split(',')
-                                    cleaned_columns = [col.strip('\r\n"*') for col in all_columns]
-                                    #print(cleaned_columns)                    
-                                    # Find data for the current frame
-                                    rows= []
-                                    data_lines = frame_content[frame_content.find('"<UNITS>"'):].split('\r\n')
-                                    #print(data_lines)
-                                    processed_lines = []
-                                    # Initialize a dictionary to hold the most recent non-empty values for each column
-                                    last_values = {}
-                                    # Convert the data_lines to an iterator to allow skipping
-                                    j=0
-                                    data_lines_iter = data_lines[1:]
-                                    while j < len(data_lines_iter):
-                                            values = [val.strip('"') for val in data_lines_iter[j].split('","')]  
-                                            # If current line is not <CONT>
-                                            if values[0] != '<CONT>':
-                                                # Check if there are empty values to fill
-                                                has_empty = any(val == '' for val in values)
-                                                k = j + 1
-                                                while has_empty and k < len(data_lines_iter):
-                                                    cont_values = [val.strip('"') for val in data_lines_iter[k].split('","')]
-                                                    if cont_values[0] == '<CONT>':
-                                                        # Fill the empty values from the subsequent <CONT> line
-                                                        for i in range(len(values)):
-                                                            if values[i] == '' and cont_values[i] != '':
-                                                                values[i] = cont_values[i]
-                                                        has_empty = any(val == '' for val in values)
-                                                        k += 1
-                                                    else:
-                                                        break  
-                                                processed_lines.append(values)
-                                            else:
-                                                # If current line is <CONT>, just update the last_values and skip
-                                                for i, val in enumerate(values):
-                                                    if val:
-                                                        last_values[i] = val
-                                            j += 1 
-                                    frames_data[frame_name] = pd.DataFrame(processed_lines, columns=cleaned_columns)
+                               columns_str= frame_content[: frame_content.find('"<UNITS>"')]
+                                #print(columns_str)
+                               all_columns= columns_str.strip('"').split(',')
+                               cleaned_columns = [col.strip('\r\n"*') for col in all_columns]
+                                #print(cleaned_columns)                    
+                                # Find data for the current frame
+                               data_lines = frame_content[frame_content.find('"<UNITS>"'):].split('\r\n')
+                                #print(data_lines)
+                               processed_lines = []
+                                # Initialize a dictionary to hold the most recent non-empty values for each column
+                               last_values = {}
+                                # Convert the data_lines to an iterator to allow skipping
+                               j=0
+                               data_lines_iter = data_lines[1:]
+                               while j < len(data_lines_iter):
+                                        values = [val.strip('"') for val in data_lines_iter[j].split('","')]  
+                                        # If current line is not <CONT>
+                                        if values[0] != '<CONT>':
+                                            # Check if there are empty values to fill
+                                            has_empty = any(val == '' for val in values)
+                                            k = j + 1
+                                            while has_empty and k < len(data_lines_iter):
+                                                cont_values = [val.strip('"') for val in data_lines_iter[k].split('","')]
+                                                if cont_values[0] == '<CONT>':
+                                                    # Fill the empty values from the subsequent <CONT> line
+                                                    for i in range(len(values)):
+                                                        if values[i] == '' and cont_values[i] != '':
+                                                            values[i] = cont_values[i]
+                                                    has_empty = any(val == '' for val in values)
+                                                    k += 1
+                                                else:
+                                                    break  
+                                            processed_lines.append(values)
+                                        else:
+                                            # If current line is <CONT>, just update the last_values and skip
+                                            for i, val in enumerate(values):
+                                                if val:
+                                                    last_values[i] = val
+                                        j += 1 
+                               frames_data[frame_name] = pd.DataFrame(processed_lines, columns=cleaned_columns)
   
 
                         project= frames_data.get('PROJ')
@@ -268,6 +257,7 @@ async def addBHs(Files: List[UploadFile] = File(...), db: Session = Depends(get_
                                 geom = from_shape(point)
                                 new_entry = Borehole(
                                 pointID=pointID,
+                                filename= fl,
                                 date= project_date,
                                 project= project_name,
                                 Elevation= Elevation,
@@ -284,8 +274,8 @@ async def addBHs(Files: List[UploadFile] = File(...), db: Session = Depends(get_
                         GEOLs = frames_data.get('GEOL')
                         if  GEOLs is not None and not GEOLs.empty:
                             GEOLs= GEOLs[['HOLE_ID', 'GEOL_TOP', 'GEOL_BASE', 'GEOL_LEG']]
-                            GEOLs['GEOL_LEG'] = GEOLs['GEOL_LEG'].replace(result_dict)
-                            GEOLs.rename(columns={'HOLE_ID': 'PointID', 'GEOL_TOP': 'Depth','GEOL_LEG': 'GEOL_DESC'}, inplace=True)
+                            #GEOLs['GEOL_LEG'] = GEOLs['GEOL_LEG'].replace(result_dict)
+                            GEOLs.rename(columns={'HOLE_ID': 'PointID', 'GEOL_TOP': 'Depth'}, inplace=True)
                             GEOLs.dropna(how='any', inplace=True)
 
 
@@ -312,24 +302,13 @@ async def addBHs(Files: List[UploadFile] = File(...), db: Session = Depends(get_
                         for _, row in GEOLs.iterrows():
                             pointID= row['PointID']
                             if (pointID in boreholes):
-                               if (filename.endswith('.xls') or filename.endswith('.xlsx') or filename.endswith('.xlsm')):
-                                    if (isinstance(row['GEOL_LEG'], (int))):
-                                        if (len(row['GEOL_DESC'].split(',')) > 1): #if geol is a long text, we take the 1st upper word
-                                            match = re.search(r'\b[A-Z]{2,}\b', row['GEOL_DESC'])
-                                            if match:
-                                                geol_desc= match.group(0)
-                                            else:
-                                                geol_desc = row['GEOL_DESC']
-                                        else:
-                                            geol_desc = row['GEOL_DESC']
-
-                                    else:
-                                        geol_desc = row['GEOL_LEG']
+                               if (str(row['GEOL_LEG']) in geo.keys()):
+                                   geol_desc = geo[str(row['GEOL_LEG'])]
                                else:
-                                   geol_desc = row['GEOL_DESC']
+                                   continue
                                depthFrom= row['Depth']
                                depthTo = row['GEOL_BASE']
-                               #Sprint(bhsdict[pointID])
+                               #print(bhsdict[pointID])
                                new_entry= Geol(pointID= pointID, bh_id= bhsdict[pointID], project=project_name, depth_from=depthFrom, depth_to= depthTo, geol_value=geol_desc)
                                db.add(new_entry)
                         db.commit()
@@ -463,7 +442,7 @@ def delete_user(username: str, db: Session = Depends(get_db)):
 
 @app.get("/bh")
 def getBHs(db: Session = Depends(get_db)):
-    BHs= db.query(Borehole).distinct().all()
+    BHs= db.query(Borehole).all()
     #print(BHs)
     data= []
     for bh in BHs:
@@ -478,7 +457,8 @@ def getData(id: int = Query(...), parameter: str = Query(...), db: Session = Dep
     data= []
     bh= db.query(Borehole).filter(Borehole.id == id).first()
     print('hoooooo', bh.pointID)
-    values = db.query(Bh_params).filter(Bh_params.bh_id == id, Bh_params.name == parameter).all()
+    para_names= {'SCR':'CORE_PREC', 'TCR':'CORE_SREC', 'RQD':'CORE_RQD', 'SPT': 'ISPT', 'UCS': 'UCS'}
+    values = db.query(Bh_params).filter(Bh_params.bh_id == id, Bh_params.name == para_names[parameter]).all()
 
     for v in values:
         print(v)
@@ -500,20 +480,19 @@ def getGeol(id: int, db: Session = Depends(get_db)):
         geometry = wkb.loads(bytes(bh.geom.data))
         if pd.isna(geometry.y) or pd.isna(geometry.x):
             continue
-        val = v.geol_value.lower()
         data.append({
             'id': bh.id,
             'name': bh.pointID,
-            'x': geometry.x,
-            'y': geometry.y,
+            'x': bh.East,
+            'y': bh.North,
             'Elev': bh.Elevation,
             'depthFrom': v.depth_from,
             'depthTo': v.depth_to,
-            'geol_desc': val,
+            'geol_desc': v.geol_value,
         })
     return {'data': data}
 
-
+#CPT SECTION
 @app.get("/projects")
 def getprojects(db: Session = Depends(get_db)):
     projects= db.query(Project).all()
@@ -524,7 +503,7 @@ def getprojects(db: Session = Depends(get_db)):
         })
     return {'data': data}
 
-#get only boxes with associated CPT data
+#get only boxes WITH associated CPT data WITH measurements
 @app.get("/grid")
 def getGrid(id: int, db: Session = Depends(get_db)):
     data= []

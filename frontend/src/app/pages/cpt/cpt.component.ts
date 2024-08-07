@@ -126,6 +126,7 @@ getProjects(): void {
 }
 
 zoomTo(project_id: number, lng: number, lat: number): void {
+  console.log(lat, lng)
 this.isloading= true
 this.cptdata.getGrid(project_id).subscribe(response => {
   console.log(response.data)

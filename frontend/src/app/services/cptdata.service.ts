@@ -5,10 +5,8 @@ import { Observable, catchError, of, shareReplay, tap } from 'rxjs';
 export interface Project {
   id: number
   name: string;
-  loclon: number;
-  loclat: number;
-
-
+  lon: number;
+  lat: number;
 }
 @Injectable({
   providedIn: 'root'

@@ -8,7 +8,7 @@ Base = declarative_base()
 
 class User(Base):
     __tablename__ = 'users'
-    __table_args__ = {'schema': 'public'}
+    #__table_args__ = {'schema': 'public'}
     username = Column(String, primary_key=True, unique=True, index=True)
     password = Column(String, nullable=False)
     status = Column(String, default='verified')
@@ -27,6 +27,7 @@ class Borehole(Base):
     North = Column(DOUBLE_PRECISION, nullable=False)
     Elevation = Column(DOUBLE_PRECISION, nullable=False)
     geom = Column(Geometry('POINT', srid=4326), nullable=False)
+    filename = Column(String, nullable=False)
     date= Column(Date, nullable=True)
 
 class Geol(Base):
