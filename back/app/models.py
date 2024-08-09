@@ -1,6 +1,6 @@
 
 from geoalchemy2 import Geometry
-from sqlalchemy import DOUBLE_PRECISION, Column, Date, ForeignKey, Integer, String
+from sqlalchemy import DOUBLE_PRECISION, Column, Date, ForeignKey, Integer, String, Text
 from sqlalchemy.ext.declarative import declarative_base
 
 Base = declarative_base()
@@ -59,6 +59,7 @@ class Bh_params(Base):
 from sqlalchemy import MetaData, Table, Column, Integer
 from sqlalchemy.ext.automap import automap_base
 from .database import engine
+from sqlalchemy.orm import relationship
 
 metadata = MetaData(schema='cpt')
 project_table = Table('project', metadata, autoload_with=engine)
@@ -83,9 +84,11 @@ class Cpt(Base):
     __mapper_args__ = {
         'primary_key': [info_table.c.id]  # Replace 'id' with the actual primary key column name
     }
+    meass = relationship("Meas", back_populates="cpt")
 
 class Meas(Base):
     __table__ = meas_table
     __mapper_args__ = {
         'primary_key': [meas_table.c.id]  # Replace 'id' with the actual primary key column name
     }
+    cpt = relationship("Cpt", back_populates="meass")

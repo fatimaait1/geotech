@@ -4,11 +4,11 @@
 
   
        <a href="index.html" class="logo me-auto"><img src="" alt="" class="img-fluid"></a>
-       
       <nav id="navbar" class="navbar">
         <ul>
-            
+          
           <li><a class="nav-link scrollto active" href="#hero">Home</a></li>
+          <li><a class="nav-link scrollto" [routerLink]="['/bh']">Borehole Dashboard</a></li>
           <li class="dropdown"><a href="#"><span>Settings</span> <i class="bi bi-chevron-down"></i></a>
             <ul>
               <li><a [routerLink]="['/account', username]">My account</a></li>
@@ -25,12 +25,19 @@
   </header><!-- End Header -->
 
   <section>
-    <div id="content-wrapper">
+    <div class="container-fluid">
+      <div class="row">
+        <div class="col-12 text-center">
+            <h3 class="mb-3">The CPT Dashboard</h3>
+            <p class="lead">Select a project from the map below to view grid and select a box to show detailed data.</p>
+        </div>
+    </div>
     <div class="row container-fluid  justify-content-center"> 
-        <div class="col-xl-8 col-lg-8 col-md-8 mt-4 mb-4  mr-4 ml-4" >
+
+        <div class="col-xl-5 col-lg-5 col-md-5 mt-2" >
             <div id="map" #map style="height: 600px;"></div>
         </div> 
-        <div class="col-xl-3 col-lg-3 col-md-3  mt-4 mb-4 scrollable embed-responsive resp">
+        <div class="col-xl-3 col-lg-3 col-md-3 mt-2 scrollable embed-responsive resp">
             <div class="card border-left-info shadow h-100 py-2">
               <div class="card-body" id="tbl">
                 <div class="text-m font-weight-bold text-info text-uppercase mb-1">
@@ -83,6 +90,130 @@
               </div>
             </div>
         </div>
+        @if(selectedProject) {
+        <div class="col-xl-4 col-lg-4 col-md-4">
+          <div class="card border-left-secondary shadow h-100 py-2">
+            <div class="card-body">
+              <div class="text-m font-weight-bold text-secondary text-uppercase mb-1">
+                Summary: {{selectedprojectname}} 
+              </div>
+              <div class="row mb-1">
+                <div class="col-md-6">
+                  <div class="mb-0">
+                    <label class="form-label" for="box-id">Box ID</label>
+                    <input
+                      class="form-control"
+                      id="box-id"
+                      [(ngModel)]="cptname"
+                      (keyup)="searchName()"
+                      [ngModelOptions]="{ standalone: true }"
+                      type="search"
+                      placeholder="Search by Box ID"
+                      aria-label="Search"
+                    />
+                  </div>
+            
+                  <div class="mb-2 mt-2">
+                    <label class="form-label" for="cpt-type">CPT Type</label>
+                    <select
+                      class="form-select"
+                      id="cpt-type"
+                      [(ngModel)]="cpttype"
+                      (change)="searchType()"
+                      [ngModelOptions]="{ standalone: true }"
+                    >
+                      <option value="" disabled selected>Select</option>
+                      <option value="PRE">PRE</option>
+                      <option value="POST">POST</option>
+                    </select>
+                  </div>
+                </div>
+             
+                <div class="col-md-6">
+                  <div class="mb-0">
+                    <label class="form-label" for="start-date">From:</label>
+                    <input
+                      class="form-control"
+                      type="date"
+                      id="start-date"
+                      [(ngModel)]="startDate"
+                      (change)="applyDateFilter()"
+                    />
+                  </div>
+            
+                  <div class="mb-2 mt-2">
+                    <label class="form-label" for="end-date">To:</label>
+                    <input
+                      class="form-control"
+                      type="date"
+                      id="end-date"
+                      [(ngModel)]="endDate"
+                      (change)="applyDateFilter()"
+                    />
+                  </div>
+                </div>
+              </div>
+              
+              <div class="row">
+                <div class="col-md-6">
+                  <div class="card text-center mb-3 t">
+                    <div class="card-body t">
+                      <h6 class="card-title">PRE CPTs</h6>
+                      <div class="counter" [innerText]="totalPre"></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="card text-center mb-3 t">
+                    <div class="card-body t">
+                      <h6 class="card-title">POST CPTs</h6>
+                      <div class="counter" [innerText]="totalPost"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+          
+              <!-- Table -->
+               <div class="resp3" >
+              <table class="table table-bordered">
+                <thead>
+                  <tr>
+                    <th>Box ID</th>
+                    <th>Type</th>
+                    <th>Sample Date</th>
+                    <!-- <th>Subcontractor</th>  -->
+                       
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (row of filteredData; track row) 
+                 
+                  {
+
+                  <tr>
+
+                  <td>{{ row.box_name }}</td>
+                  <td>{{ row.cpt_info.type }}</td>
+                  <td>{{ row.cpt_info.sample_date }}</td>
+                  <!-- <td>{{ row.subcontractor }}</td>  -->
+                  
+                  <td>
+                    <div class=" d-flex justify-content-around">
+                      <button type="button" class="btn btn-secondary mx-1" (click)="plot(selectedProject, row.box_name, row.cpt_info.type)">
+                        <i class="bi bi-graph-up"></i>
+                      </button>
+                      
+                    </div>
+                  </td>
+                </tr> 
+                 }
+                </tbody>
+              </table>
+            </div>
+            </div>
+          </div>
+        </div>}
     </div>
     @if(isloading)
 
@@ -124,7 +255,7 @@
                                    [value]="option"
                                    [(ngModel)]="selectedType" 
                                    [ngModelOptions]="{standalone: true}" 
-                                   (change)="plot(selectedBox, selectedType)"
+                                   (change)="plot(selectedProject, selectedBox, selectedType)"
                                    name="typeGroup"/>
                             {{ option }}
                         </label>

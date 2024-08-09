@@ -1,9 +1,16 @@
+
 import { Component } from '@angular/core';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { Router, RouterLink, RouterOutlet } from '@angular/router';
-import { CptdataService, Project } from '../../services/cptdata.service';
+import { Box, CptdataService, Project } from '../../services/cptdata.service';
 import * as L from 'leaflet';
 import Plotly, { Data } from 'plotly.js-dist-min';
+interface FlattenedCptInfo {
+  box_name: string;
+  subcontractor: string;
+  sample_date: string; // Change Date to string for easier formatting
+  type: string;
+}
 @Component({
   selector: 'app-cpt',
   standalone: true,
@@ -11,6 +18,7 @@ import Plotly, { Data } from 'plotly.js-dist-min';
   templateUrl: './cpt.component.html',
   styleUrl: './cpt.component.css'
 })
+
 export class CptComponent {
   constructor(private router: Router, private cptdata: CptdataService) {}
   map: any;
@@ -20,12 +28,23 @@ export class CptComponent {
   projects: Project[]= [];
 filteredProjects: Project[]= [];
 searchText= '';
-selectedProject: number | undefined;
+cpttype= '';
+cptname= '';
+selectedProject: number = 0
 selectedBox='';
 isclicked: boolean= false;
 selectedType= 'PRE'
 types= ['PRE', 'POST', 'PRE and POST']
 isloading=false
+cptData: any;
+boxes: Box[]=[]
+//flattenedData: FlattenedCptInfo[] = [];
+startDate: string = '';
+endDate: string = '';
+filteredData: Box[] = [];
+totalPre= 0
+totalPost=0
+selectedprojectname=''
 ngOnInit(): void {
        this.map= L.map('map');
        const customControl = L.Control.extend({
@@ -45,7 +64,7 @@ ngOnInit(): void {
            container.onclick = () => {
 
              this.isclicked= false
-
+             this.selectedProject=0
              this.map.eachLayer((layer: any) => {
                  this.map.removeLayer(layer);
              });
@@ -67,6 +86,20 @@ searchProjects() {
   this.filteredProjects = this.projects.filter(project =>
     project.name.toLowerCase().includes(this.searchText.toLowerCase())
   );
+}
+
+searchName() {
+  this.filteredData = this.boxes.filter(cpt =>
+    cpt.box_name.toLowerCase().includes(this.cptname.toLowerCase())
+  );
+  this.calculateTotals();
+}
+
+searchType() {
+  this.filteredData = this.boxes.filter(cpt =>
+    cpt.cpt_info.type.toLowerCase().includes(this.cpttype.toLowerCase())
+  );
+  this.calculateTotals();
 }
 getProjects(): void {
   this.cptdata.getProjects().subscribe(response => {
@@ -109,6 +142,7 @@ getProjects(): void {
             });
       layer.on('click', () => { 
         this.selectedProject= +element['id']
+        this.selectedprojectname=element['name']
         this.zoomTo(this.selectedProject, element['lon'], element['lat']);
       })
   }
@@ -124,30 +158,80 @@ getProjects(): void {
 
 )
 }
+/*flattenData(boxes: Box[]): void {
+  this.flattenedData = boxes.reduce((acc, box) => {
+    const cptRows = box.cpt_info.map(cpt => ({
+      box_name: box.box_name,
+      subcontractor: cpt.subcontractor,
+      sample_date: new Date(cpt.sample_date).toLocaleDateString(), // Format the date as a string
+      type: cpt.type
+    }));
+    return acc.concat(cptRows);
+  }, [] as FlattenedCptInfo[]);
+}
 
+
+if you want this to not concat rows with same box_name, sample_date and type: 
+flattenData(boxes: Box[]): void {
+  const uniqueEntries = new Set<string>();
+
+  this.flattenedData = boxes.reduce((acc, box) => {
+    const cptRows = box.cpt_info.map(cpt => {
+      const entryKey = `${box.box_name}-${new Date(cpt.sample_date).toLocaleDateString()}-${cpt.type}`;
+      if (!uniqueEntries.has(entryKey)) {
+        uniqueEntries.add(entryKey);
+        return {
+          box_name: box.box_name,
+          subcontractor: cpt.subcontractor,
+          sample_date: new Date(cpt.sample_date).toLocaleDateString(), // Format the date as a string
+          type: cpt.type
+        };
+      }
+      return null;
+    }).filter(row => row !== null); // Filter out null entries
+
+    return acc.concat(cptRows);
+  }, [] as FlattenedCptInfo[]);
+}*/
+applyDateFilter(): void {
+  const start = this.startDate ? new Date(this.startDate) : new Date('1970-01-01');
+  const end = this.endDate ? new Date(this.endDate) : new Date();
+
+  this.filteredData = this.boxes.filter(cpt => {
+    const sampleDate = new Date(cpt.cpt_info.sample_date);
+    return sampleDate >= start && sampleDate <= end;
+  });
+  this.calculateTotals();
+}
 zoomTo(project_id: number, lng: number, lat: number): void {
-  console.log(lat, lng)
-this.isloading= true
+  this.isloading= true
+  //console.log(lat, lng)
+  this.selectedProject=project_id
+
 this.cptdata.getGrid(project_id).subscribe(response => {
-  console.log(response.data)
-  const boxes= response.data
-  if (boxes.length == 0) {alert('There is no box with CPT data in this project.')
+  //console.log(response.data)
+  this.boxes= response.data
+  //this.flattenData(this.boxes);
+  this.filteredData = [...this.boxes];
+  this.calculateTotals();
+  if (this.boxes.length == 0) {alert('There is no box with CPT data in this project.')
     this.isloading= false
+    this.selectedProject=0
   }
   else {this.map.eachLayer((layer: any) => {
     if (layer != this.tile)
                 {this.map.removeLayer(layer);}
             });
   this.map.setView([lat, lng], 14);
-  boxes.forEach((element: { [x: string]: any; }) => {
+  this.boxes.forEach((element: { [x: string]: any; }) => {
     const geoJsonLayer = L.geoJSON(element['geom'], {
       onEachFeature: (feature, layer) => {
         layer.bindPopup(element['box_name']);
         layer.on('click', () => {
-          this.isclicked = true
+          
             //this.selectedBox= +element['id'];
             this.selectedBox= element['box_name']
-            this.plot(this.selectedBox, this.selectedType)
+            this.plot(project_id, this.selectedBox, this.selectedType)
         })
       }
     });
@@ -156,13 +240,12 @@ this.cptdata.getGrid(project_id).subscribe(response => {
     this.isloading= false
   })
 }
-
-
-
-
 })
 }
- 
+calculateTotals(): void {
+  this.totalPre = this.filteredData.filter(cpt => cpt.cpt_info.type === 'PRE').length;
+  this.totalPost = this.filteredData.filter(cpt => cpt.cpt_info.type === 'POST' || cpt.cpt_info.type === 'PO').length;
+}
 getRandomColor() {
   const getRandomValue = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
 
@@ -177,10 +260,14 @@ getRandomColor() {
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
 
-plot(id: string, type: string): void {
-  this.cptdata.getCPTData(id, type).subscribe(response => {
+plot(prjid: number, id: string, type: string): void {
+  this.isclicked = true
+  this.selectedBox= id
+  this.selectedType= type
+  this.cptdata.getCPTData(prjid, id, type).subscribe(response => {
     const data = response.cpt_data;
-
+    this.cptData= data
+    console.log(this.cptData)
     // Initialize data arrays
     const fsData: Partial<Plotly.Data>[] = [];
     const qcData: Partial<Plotly.Data>[] = [];
@@ -235,9 +322,19 @@ plot(id: string, type: string): void {
 
     // Plot fs data
     Plotly.newPlot('fs', fsData, {
-      xaxis: { title: 'fs [KPa]', range: [0, 0.5], ticks: 'outside', autotick: false, tick0: 0,dtick: 0.05},
+      xaxis: { title: 'fs [KPa]', range: [0, 0.5], ticks: 'outside', autotick: false, tick0: 0,dtick: 0.05, showgrid: true,
+        zeroline: true,
+        showline: true,
+        mirror: 'ticks',
+        gridcolor: '#bdbdbd',
+        gridwidth: 1},
       yaxis: { title: 'Depth [m]', tick0: 0,
-      dtick: 1, autorange: 'reversed'},
+      dtick: 1, autorange: 'reversed', showgrid: true,
+      zeroline: true,
+      showline: true,
+      mirror: 'ticks',
+      gridcolor: '#bdbdbd',
+      gridwidth: 1},
       legend: {
       x: 0, // Place the legend at the horizontal center
       y: -0.1, // Position the legend below the chart (negative value)
@@ -246,16 +343,26 @@ plot(id: string, type: string): void {
     height:650,
     margin: {
       l: 25,
-      r:20, t: 25, b:50},
+      r:20, t: 30, b:55},
      showlegend: true,
       title: { text: 'fs vs depth', font: { color: 'black' } }
     }, { responsive: true });
 
     // Plot qc data
     Plotly.newPlot('qc', qcData, {
-      xaxis: { title: 'qc [MPa]', range: [0, 60], ticks: 'outside', autotick: false,tick0: 0, dtick: 7},
+      xaxis: { title: 'qc [MPa]', range: [0, 60], ticks: 'outside', autotick: false,tick0: 0, dtick: 7, showgrid: true,
+        zeroline: true,
+        showline: true,
+        mirror: 'ticks',
+        gridcolor: '#bdbdbd',
+        gridwidth: 1},
         yaxis: { title: 'Depth [m]', tick0: 0,
-        dtick: 1, autorange: 'reversed'},
+        dtick: 1, autorange: 'reversed', showgrid: true,
+        zeroline: true,
+        showline: true,
+        mirror: 'ticks',
+        gridcolor: '#bdbdbd',
+        gridwidth: 1},
         legend: {
         x: 0, // Place the legend at the horizontal center
         y: -0.1, // Position the legend below the chart (negative value)
@@ -265,7 +372,7 @@ plot(id: string, type: string): void {
       showlegend: true,
       margin: {
           l: 25,
-          r:20, t: 25, b:50},
+          r:20, t: 30, b:55},
 
       title: { text: 'qc vs depth', font: { color: 'black' } }
     }, { responsive: true });

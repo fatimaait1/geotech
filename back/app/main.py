@@ -505,46 +505,61 @@ def getprojects(db: Session = Depends(get_db)):
 
 #get only boxes WITH associated CPT data WITH measurements
 @app.get("/grid")
-def getGrid(id: int, db: Session = Depends(get_db)):
-    data= []
+def get_grid(id: int, db: Session = Depends(get_db)):
     # Aliases for clarity
     CptAlias = aliased(Cpt)
     MeasAlias = aliased(Meas)
 
-# Subquery for EXISTS
-    exists_subquery = (
-    exists()
-    .where(
-        CptAlias.box_id == Box.box_name,
-        CptAlias.id == MeasAlias.info_id,
-        MeasAlias.info_id == CptAlias.id,
-        Box.project_id == id
+    # Subquery to check for the existence of measurements
+    exists_subquery2 = (
+        db.query(MeasAlias)
+        .filter(MeasAlias.info_id == Cpt.id)
+        .exists()
     )
-)
 
-# Query with EXISTS filter
-    boxes = db.query(Box).filter(exists_subquery).distinct().all()
-    for b in boxes:
-        geom = to_shape(b.polygon)
-        data.append({'id': b.id, 'box_name': b.box_name, 'geom': mapping(geom)})
+    # Main query to get boxes with associated CPT data with measurements
+    results = (
+        db.query(Box.box_name, Box.polygon, Cpt.subcontractor, Cpt.sample_date, Cpt.type)
+        .join(Cpt, Box.box_name == Cpt.box_id)
+        .filter(
+            Box.project_id == id,
+            exists_subquery2
+        )
+        .all()
+    )
+
+    # Prepare the data structure
+    data = []
+    for box_name, polygon, subcontractor, sample_date, cpt_type in results:
+        geom = to_shape(polygon)  # Assuming this method converts the geometry
+        data.append({
+            'box_name': box_name,
+            'geom': mapping(geom),  # Convert geometry to GeoJSON
+            'cpt_info': {
+                'subcontractor': subcontractor,
+                'sample_date': sample_date,
+                'type': cpt_type
+            }
+        })
+
     return {'data': data}
 
 
 @app.get("/cptdata")
-def getcptdata(id: str, type: str, db: Session = Depends(get_db)):
+def getcptdata(prjId: int, id: str, type: str, db: Session = Depends(get_db)):
     print(type)
     if type == 'POST':
-        cpts = db.query(Cpt).filter(Cpt.box_id == id, or_(Cpt.type == 'POST', Cpt.type == 'PO')).all()
+        cpts = db.query(Cpt).filter(Cpt.project_id== prjId, Cpt.box_id == id, or_(Cpt.type == 'POST', Cpt.type == 'PO')).join(Meas, Cpt.id == Meas.info_id).all()
     elif type == 'PRE and POST':
-        cpts = db.query(Cpt).filter(Cpt.box_id == id, or_(Cpt.type == 'POST', Cpt.type == 'PO', Cpt.type == 'PRE')).all()
+        cpts = db.query(Cpt).filter(Cpt.box_id == id, or_(Cpt.type == 'POST', Cpt.type == 'PO', Cpt.type == 'PRE')).join(Meas, Cpt.id == Meas.info_id).all()
     else:
-        cpts = db.query(Cpt).filter(Cpt.box_id == id, Cpt.type == type).all()
+        cpts = db.query(Cpt).filter(Cpt.box_id == id, Cpt.type == type).join(Meas, Cpt.id == Meas.info_id).all()
 
     cpt_data = []
     for cpt in cpts:
-        measurements = db.query(Meas).filter(Meas.info_id == cpt.id).all()
+        #measurements = db.query(Meas).filter(Meas.info_id == cpt.id).all()
         meas_data = []
-        for m in measurements:
+        for m in cpt.meass:
             meas_data.append({
                 'depth': m.depth,
                 'fs': m.fs,
@@ -556,6 +571,7 @@ def getcptdata(id: str, type: str, db: Session = Depends(get_db)):
             'grid_id': cpt.grid_id,
             'box_name': cpt.box_id,
             'type': cpt.type,
+            #'date': cpt.sample_date,
             'measurements': meas_data
         })
     #print(cpt_data)

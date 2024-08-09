@@ -1,3 +1,4 @@
+
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { TokenService } from './token.service';
@@ -7,6 +8,15 @@ export interface Project {
   name: string;
   lon: number;
   lat: number;
+}
+
+export interface Box {
+  box_name: string;
+  geom: any;
+  cpt_info:
+  {subcontractor: string;
+    sample_date: string;
+    type: string;}
 }
 @Injectable({
   providedIn: 'root'
@@ -31,8 +41,8 @@ export class CptdataService {
     return this.http.get<any>(`${this.baseUrl}/grid/?id=${id}`, { headers: this.getAuthHeaders() });
   }*/
 
-  getCPTData(id: string, type: string): Observable<any> {
-    return this.http.get<any>(`${this.baseUrl}/cptdata/?id=${id}&type=${type}`, { headers: this.getAuthHeaders() });
+  getCPTData(prjId: number, id: string, type: string): Observable<any> {
+    return this.http.get<any>(`${this.baseUrl}/cptdata/?id=${id}&type=${type}&prjId=${prjId}`, { headers: this.getAuthHeaders() });
   } 
 
   getGrid(id: number): Observable<any> {

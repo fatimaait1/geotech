@@ -314,7 +314,7 @@ updatePlot(): void {
         orientation: 'h' // Set the legend orientation to horizontal
       },
       showlegend: true,
-      height: 700,
+      height: 800,
       margin: {
         l: 40,
         r:20, t: 25, b:50},
